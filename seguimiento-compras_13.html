@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seguimiento de Compras — Canal Tradicional</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --red:#E4002B; --red-dark:#A3001F; --red-light:#FDEAEE; --red-softest:#FFF5F6;
+    --bg:#F5F3F1; --surface:#FFFFFF; --border:#E7E2DD; --border-soft:#F0ECE8;
+    --text:#191614; --text-muted:#6E6660; --text-faint:#A69E97;
+    --green:#177A3D; --green-bg:#E9F6EE; --green-border:#C7E8D3;
+    --amber:#B15E00; --amber-bg:#FEF3DF; --amber-border:#F3D89B;
+    --danger:#C1121F; --danger-bg:#FCEBEC; --danger-border:#F1C3C8;
+    --radius-sm:8px; --radius:12px; --radius-lg:18px;
+    --shadow-sm:0 1px 2px rgba(25,15,12,.05);
+    --shadow-md:0 6px 20px rgba(25,15,12,.07);
+    --mono:'JetBrains Mono', ui-monospace, Consolas, monospace;
+    --sans:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;}
+  h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-0.01em;}
+  .muted{color:var(--text-muted);}
+  .faint{color:var(--text-faint);}
+
+  .topbar{background:var(--red);color:#fff;padding:16px 24px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow-md);position:sticky;top:0;z-index:10;}
+  .brand-mark{width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .brand-mark svg{width:16px;height:16px;}
+  .topbar .brand-title{font-weight:800;font-size:15px;letter-spacing:.2px;line-height:1.2;}
+  .topbar .brand-sub{font-weight:500;font-size:11px;opacity:.82;letter-spacing:.6px;text-transform:uppercase;margin-top:1px;}
+
+  main{max-width:1040px;margin:0 auto;padding:26px 20px 70px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;box-shadow:var(--shadow-sm);}
+
+  .btn{border-radius:var(--radius-sm);font-size:13px;font-weight:600;padding:9px 15px;cursor:pointer;border:1px solid transparent;font-family:var(--sans);transition:all .15s ease;}
+  .btn-primary{background:var(--red);color:#fff;box-shadow:0 2px 8px rgba(228,0,43,.25);}
+  .btn-primary:hover{background:var(--red-dark);box-shadow:0 3px 10px rgba(228,0,43,.32);}
+  .btn-outline{background:#fff;border:1px solid var(--border);color:var(--text);}
+  .btn-outline:hover{border-color:var(--red);color:var(--red);}
+  .btn-danger{background:#fff;border:1px solid var(--danger-border);color:var(--danger);}
+  .btn-danger:hover{background:var(--danger-bg);}
+  .btn-link{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:0;font-family:var(--sans);}
+  .btn-link:hover{color:var(--red);}
+
+  input[type=text],input[type=date],input[type=number],select{
+    border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 11px;font-size:13.5px;font-family:var(--sans);color:var(--text);background:#fff;width:100%;
+  }
+  input:focus,select:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-light);}
+  label.field-label{display:block;font-size:11.5px;color:var(--text-muted);margin-bottom:5px;font-weight:600;letter-spacing:.1px;}
+  .opt-tag{font-size:10.5px;color:var(--text-faint);font-weight:400;text-transform:none;letter-spacing:0;}
+
+  .tabbar{display:flex;border-bottom:1px solid var(--border);margin-bottom:20px;}
+  .tab-btn{position:relative;background:none;border:none;padding:12px 4px;margin-right:24px;font-size:13.5px;font-weight:700;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;font-family:var(--sans);}
+  .tab-btn.active{color:var(--red);border-bottom-color:var(--red);}
+  .tab-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--danger);margin-left:6px;vertical-align:middle;}
+  .dme-alert{display:flex;gap:12px;align-items:flex-start;background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:var(--radius);padding:14px 16px;margin-bottom:18px;color:var(--amber);}
+  .dme-alert svg{width:18px;height:18px;flex-shrink:0;margin-top:1px;}
+  .progress-track{height:8px;background:var(--border-soft);border-radius:5px;overflow:hidden;}
+  .progress-fill{height:100%;border-radius:5px;}
+
+  .row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;justify-content:space-between;}
+
+  .counts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;}
+  .count-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;cursor:pointer;text-align:left;display:flex;align-items:center;gap:12px;transition:all .15s ease;box-shadow:var(--shadow-sm);}
+  .count-card:hover{border-color:var(--text-faint);}
+  .count-card.active{border-color:var(--red);background:var(--red-softest);box-shadow:0 0 0 3px var(--red-light);}
+  .count-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .count-icon svg{width:17px;height:17px;}
+  .count-card .lbl{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;font-weight:600;}
+  .count-card .val{font-size:22px;font-weight:800;margin-top:1px;}
+
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .dot.verde{background:var(--green);} .dot.amarillo{background:#D9970C;} .dot.rojo{background:var(--danger);}
+  .badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700;white-space:nowrap;}
+  .badge.verde{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);}
+  .badge.amarillo{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border);}
+  .badge.rojo{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-border);}
+
+  /* Centro de alertas */
+  .alerts-card{border-radius:var(--radius);overflow:hidden;margin-bottom:16px;border:1px solid var(--border);box-shadow:var(--shadow-sm);}
+  .alerts-head{display:flex;align-items:center;gap:9px;padding:13px 18px;background:#fff;border-bottom:1px solid var(--border-soft);}
+  .alerts-head svg{width:16px;height:16px;color:var(--amber);}
+  .alerts-head .t{font-weight:700;font-size:13.5px;}
+  .alerts-head .n{margin-left:auto;font-size:11.5px;color:var(--text-faint);}
+  .alerts-list{max-height:260px;overflow-y:auto;background:#fff;}
+  .alert-item{display:flex;align-items:center;gap:12px;padding:11px 18px;border-left:3px solid transparent;cursor:pointer;border-bottom:1px solid var(--border-soft);transition:background .12s ease;}
+  .alert-item:last-child{border-bottom:none;}
+  .alert-item:hover{background:var(--red-softest);}
+  .alert-item.rojo{border-left-color:var(--danger);}
+  .alert-item.amarillo{border-left-color:#D9970C;}
+  .alert-icon{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .alert-icon svg{width:13px;height:13px;}
+  .alert-body{min-width:0;flex:1;}
+  .alert-title{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .alert-sub{font-size:11.5px;color:var(--text-faint);margin-top:1px;}
+  .alert-time{font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0;text-align:right;}
+  .alert-time.rojo{color:var(--danger);} .alert-time.amarillo{color:var(--amber);}
+  .escal-tag{display:inline-block;margin-top:2px;font-size:10px;font-weight:700;color:var(--danger);background:var(--danger-bg);border-radius:5px;padding:1px 6px;letter-spacing:.2px;}
+
+  /* Filtros */
+  .filters-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;}
+
+  /* Lista de órdenes como tarjetas */
+  .order-list{display:flex;flex-direction:column;gap:9px;}
+  .order-card{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:13px 16px;cursor:pointer;box-shadow:var(--shadow-sm);transition:all .13s ease;}
+  .order-card:hover{border-color:var(--red);box-shadow:var(--shadow-md);transform:translateY(-1px);}
+  .order-status-bar{width:4px;align-self:stretch;border-radius:4px;flex-shrink:0;}
+  .order-status-bar.verde{background:var(--green);} .order-status-bar.amarillo{background:#D9970C;} .order-status-bar.rojo{background:var(--danger);}
+  .order-main{min-width:0;flex:1;}
+  .order-title{font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .order-sub{font-size:12px;color:var(--text-faint);margin-top:2px;font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .order-stage{text-align:right;flex-shrink:0;min-width:150px;}
+  .order-stage .st-label{font-size:12.5px;font-weight:700;}
+  .order-stage .st-resp{font-size:11px;color:var(--text-faint);margin-top:1px;}
+  .order-time{font-size:12px;font-weight:700;flex-shrink:0;min-width:150px;text-align:right;}
+  .chev{color:var(--text-faint);flex-shrink:0;}
+
+  /* Stepper de etapas */
+  .stepper{display:flex;overflow-x:auto;gap:0;padding:8px 2px 4px;}
+  .step-col{display:flex;flex-direction:column;align-items:center;width:114px;flex-shrink:0;}
+  .step-circle{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid;}
+  .step-label{font-size:11.5px;margin-top:7px;text-align:center;line-height:1.25;}
+  .step-date{font-size:10.5px;color:var(--text-faint);margin-top:2px;font-family:var(--mono);}
+  .connector{width:16px;height:2px;margin-top:13px;flex-shrink:0;}
+
+  .fields-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;}
+  .field-box{display:flex;flex-direction:column;gap:4px;}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(25,15,12,.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  .modal{background:#fff;border-radius:var(--radius-lg);width:100%;max-width:420px;padding:22px;box-shadow:var(--shadow-md);}
+  .modal h3{margin-bottom:15px;font-size:16px;}
+  .modal .err{color:var(--danger);font-size:12.5px;margin-top:8px;}
+
+  .hist-item{display:flex;gap:10px;font-size:12.5px;margin-bottom:7px;}
+  .hist-date{font-family:var(--mono);color:var(--text-faint);flex-shrink:0;}
+  .footer-note{margin-top:20px;font-size:11.5px;color:var(--text-faint);}
+  .empty-msg{padding:30px 0;text-align:center;color:var(--text-faint);font-size:13px;}
+  ::placeholder{color:var(--text-faint);}
+  ::-webkit-scrollbar{height:8px;width:8px;} ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h10M14 12l-3-3M14 12l-3 3"/><circle cx="19" cy="12" r="2.2"/></svg></div>
+  <div>
+    <div class="brand-title">Canal Tradicional</div>
+    <div class="brand-sub">Seguimiento de compras</div>
+  </div>
+  <div style="margin-left:auto;font-size:11px;font-weight:600;opacity:.75;letter-spacing:.3px;">v<span id="app-version"></span></div>
+</div>
+<main id="app"></main>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+// ---------------------------------------------------------------------------
+// Versión de la app — súbela cada vez que se entregue un cambio nuevo
+// ---------------------------------------------------------------------------
+const APP_VERSION = '2.5';
+
+// ---------------------------------------------------------------------------
+// Iconos (SVG inline, sin dependencias externas)
+// ---------------------------------------------------------------------------
+const ICONS = {
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
+  alertTriangle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>',
+  box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8M12 13v8"/></svg>',
+  bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>',
+  chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
+};
+
+// ---------------------------------------------------------------------------
+// Utilidades de días hábiles
+// ---------------------------------------------------------------------------
+function esHabil(d){ const day = d.getDay(); return day !== 0 && day !== 6; }
+function diasHabilesEntre(inicioISO, finISO){
+  if(!inicioISO) return 0;
+  const inicio = new Date(inicioISO+'T00:00:00');
+  const fin = finISO ? new Date(finISO+'T00:00:00') : new Date(new Date().toDateString());
+  if(fin <= inicio) return 0;
+  let count = 0; const d = new Date(inicio);
+  while(d < fin){ d.setDate(d.getDate()+1); if(esHabil(d)) count++; }
+  return count;
+}
+function sumarDiasHabiles(dateObj, n){
+  const d = new Date(dateObj); let added = 0; const dir = n>=0?1:-1; const total = Math.abs(n);
+  while(added < total){ d.setDate(d.getDate()+dir); if(esHabil(d)) added++; }
+  return d;
+}
+const hoyISO = () => new Date().toISOString().slice(0,10);
+const isoDesdeHoy = (offset) => sumarDiasHabiles(new Date(), offset).toISOString().slice(0,10);
+function fmt(iso){ if(!iso) return '—'; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// ---------------------------------------------------------------------------
+// Definición de las 8 etapas
+// ---------------------------------------------------------------------------
+const STAGES = [
+  {key:'briefing', label:'Briefing', responsable:'Canal Tradicional', sla:1, warns:[], dateField:'briefingPublicado', inputLabel:'Briefing publicado', startFrom:o=>o.creadoEn},
+  {key:'comparativo', label:'Comparativo', responsable:'Abastecimiento', sla:10, warns:[5,10], dateField:'comparativoRecibido', inputLabel:'Comparativo recibido', startFrom:o=>o.fechas.briefingPublicado},
+  {key:'requisicion', label:'Requisición', responsable:'Canal Tradicional', sla:1, warns:[], dateField:'requisicionEmitida', inputLabel:'Requisición emitida', startFrom:o=>o.fechas.comparativoRecibido},
+  {key:'oc', label:'Orden de compra', responsable:'Abastecimiento', sla:7, warns:[2,3], dateField:'ocEmitida', inputLabel:'Orden de compra emitida', startFrom:o=>o.fechas.requisicionEmitida},
+  {key:'muestra', label:'Muestra', responsable:'Proveedor', sla:4, warns:[1], dateField:'muestraRecibida', inputLabel:'Muestra recibida', startFrom:o=>o.fechas.ocEmitida},
+  {key:'aprobacion', label:'Aprobación', responsable:'Canal Tradicional', sla:0, warns:[], dateField:'aprobacion', inputLabel:'Muestra aprobada', startFrom:o=>o.fechas.muestraRecibida},
+  {key:'entrega', label:'Entrega', responsable:'Proveedor', sla:null, warns:'recurrente5', dateField:'entregaReal', inputLabel:'Entrega completa', startFrom:o=>o.fechas.entregaUltimoSeguimiento || o.fechas.aprobacion},
+  {key:'cierre', label:'Cierre', responsable:'Canal Tradicional', sla:0, warns:[], dateField:'cierre', inputLabel:'Cierre', startFrom:o=>o.fechas.entregaReal},
+];
+const CAMPOS_EXTRA = [
+  {key:'muestraEstimada', label:'Muestra — fecha estimada por el proveedor (opcional)'},
+  {key:'entregaUltimoSeguimiento', label:'Entrega — último seguimiento con el proveedor (opcional, reinicia el contador de 5 días)'},
+];
+const emptyFechas = () => ({
+  briefingPublicado:null, comparativoRecibido:null, requisicionEmitida:null, ocEmitida:null,
+  muestraEstimada:null, muestraRecibida:null, aprobacion:null, entregaUltimoSeguimiento:null,
+  entregaReal:null, cierre:null,
+});
+
+// La etapa activa se DERIVA de los datos: la primera etapa sin fecha registrada.
+function getEstado(o){
+  for(let i=0;i<STAGES.length;i++){ if(!o.fechas[STAGES[i].dateField]) return {index:i, completado:false}; }
+  return {index:7, completado:true};
+}
+
+// ---------------------------------------------------------------------------
+// Estatus + mensaje de tiempo, redactado en términos claros de "vence en" / "vencida hace"
+// ---------------------------------------------------------------------------
+function computeStatus(o){
+  const estado = getEstado(o);
+  if(estado.completado) return {dias:0, semaforo:'verde', mensaje:'Completada', sub:'Todas las etapas registradas', escalado:false, index:7};
+  const stage = STAGES[estado.index];
+  const inicio = stage.startFrom(o);
+  const dias = diasHabilesEntre(inicio, null);
+  let semaforo = 'verde', escalado = false, mensaje = '', sub = stage.label;
+
+  if(stage.warns === 'recurrente5'){
+    const restante = 5 - (dias % 5 === 0 && dias>0 ? 0 : dias % 5);
+    if(dias >= 20){ semaforo='rojo'; mensaje = `Vencida — ${dias} días sin seguimiento`; }
+    else if(dias > 0 && dias % 5 === 0){ semaforo='amarillo'; mensaje = `Toca dar seguimiento hoy`; }
+    else { mensaje = `Próximo seguimiento en ${restante} día(s) hábil(es)`; }
+    sub = `${dias} día(s) hábil(es) en entrega`;
+  } else if(stage.sla === 0){
+    if(dias >= 2){ semaforo='rojo'; mensaje = `Vencida — ${dias} días sin registrar`; }
+    else if(dias >= 1){ semaforo='amarillo'; mensaje = `Pendiente de registrar hoy`; }
+    else { mensaje = `Al día`; }
+  } else if(typeof stage.sla === 'number'){
+    const restante = stage.sla - dias;
+    if(restante < 0){ semaforo='rojo'; escalado = stage.key==='comparativo' || stage.key==='oc'; mensaje = `Vencida hace ${-restante} día(s) hábil(es)`; }
+    else if(restante === 0){ semaforo='amarillo'; mensaje = `Vence hoy`; }
+    else if(stage.warns.some(w=>dias>=w)){ semaforo='amarillo'; mensaje = `Vence en ${restante} día(s) hábil(es)`; }
+    else { mensaje = `Vence en ${restante} día(s) hábil(es)`; }
+  }
+  return {dias, semaforo, mensaje, sub, escalado, index: estado.index};
+}
+
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function mesLabel(yyyyMM){
+  const [y,m] = yyyyMM.split('-');
+  const nombre = MESES[parseInt(m,10)-1];
+  return nombre.charAt(0).toUpperCase()+nombre.slice(1)+' '+y;
+}
+function fmtMoney(n){
+  n = Number(n)||0;
+  return '$' + n.toLocaleString('es-VE', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function burbujaDME(ejecutado, meta){
+  const sinMeta = !(meta>0);
+  const pct = sinMeta ? 0 : (ejecutado/meta)*100;
+  const pctRedondeado = Math.round(pct);
+  const color = 'var(--red)';
+  const bg = 'var(--red-softest)';
+  const rad = 46, stroke = 11, circ = 2*Math.PI*rad, dash = circ*(Math.min(100,pct)/100);
+  return `<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+    <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:120px;">
+      <div style="position:relative;width:120px;height:120px;">
+        <svg width="120" height="120" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="${rad}" fill="${bg}" stroke="var(--border-soft)" stroke-width="${stroke}"/>
+          <circle cx="60" cy="60" r="${rad}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"
+            stroke-dasharray="${dash} ${circ}" transform="rotate(-90 60 60)"/>
+        </svg>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+          <div style="font-size:28px;font-weight:800;color:${sinMeta?'var(--text-faint)':color};line-height:1;">${sinMeta?'—':pctRedondeado+'%'}</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-top:8px;">DME ejecutado</div>
+    </div>
+    <div style="min-width:180px;">
+      ${sinMeta ? `<div class="muted" style="font-size:12.5px;">Registra la meta del mes para ver el porcentaje ejecutado.</div>`
+        : `<div style="font-size:13px;"><strong style="color:${color};font-size:16px;">${pctRedondeado}%</strong> del DME de este mes ya está ejecutado.</div>
+           <div class="muted" style="font-size:12px;margin-top:4px;">${fmtMoney(ejecutado)} de ${fmtMoney(meta)}</div>
+           ${pct>=100 ? `<div style="font-size:12px;color:var(--danger);font-weight:600;margin-top:4px;">Sobre-ejecutado por ${fmtMoney(ejecutado-meta)}</div>` : ''}`}
+    </div>
+  </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// DME — gasto comprometido (requisición emitida, sin entrega) vs. gasto real
+// (entrega completa confirmada). Un gasto deja de ser comprometido en cuanto
+// pasa a ser real, nunca se cuentan los dos a la vez.
+// ---------------------------------------------------------------------------
+function montoOrden(o){
+  const costo = Number(o.costoUnitario)||0;
+  const cant = Number(o.cantidad)||0;
+  return costo * cant;
+}
+function estadoGasto(o){
+  if(o.fechas.entregaReal) return 'real';
+  if(o.fechas.requisicionEmitida) return 'comprometido';
+  return null;
+}
+function resumenDME(mes){
+  let compProd=0, compServ=0, realProd=0, realServ=0;
+  state.orders.forEach(o=>{
+    if((o.mesInicio||'') !== mes) return;
+    const monto = montoOrden(o);
+    if(monto<=0) return;
+    const eg = estadoGasto(o);
+    if(eg==='comprometido'){ if(o.tipoGasto==='servicio') compServ+=monto; else compProd+=monto; }
+    else if(eg==='real'){ if(o.tipoGasto==='servicio') realServ+=monto; else realProd+=monto; }
+  });
+  return { compProd, compServ, compTotal: compProd+compServ, realProd, realServ, realTotal: realProd+realServ };
+}
+function miercolesDelMes(year, monthIndex0){
+  const dias = []; const d = new Date(year, monthIndex0, 1);
+  while(d.getMonth()===monthIndex0){ if(d.getDay()===3) dias.push(new Date(d)); d.setDate(d.getDate()+1); }
+  return dias;
+}
+function penultimoMiercoles(year, monthIndex0){
+  const mies = miercolesDelMes(year, monthIndex0);
+  return mies.length ? mies[Math.max(0, mies.length-2)] : null;
+}
+function alertaDMEInfo(){
+  const hoy = new Date(new Date().toDateString());
+  const fechaAlerta = penultimoMiercoles(hoy.getFullYear(), hoy.getMonth());
+  if(!fechaAlerta || hoy < fechaAlerta) return null;
+  const mesActual = hoyISO().slice(0,7);
+  const meta = state.dmeMetas[mesActual] || {productos:0, servicios:0};
+  const metaTotal = (Number(meta.productos)||0) + (Number(meta.servicios)||0);
+  if(metaTotal <= 0) return null;
+  const r = resumenDME(mesActual);
+  const ejecutado = r.compTotal + r.realTotal;
+  const restante = metaTotal - ejecutado;
+  if(restante <= 0) return null;
+  return { restante, metaTotal, ejecutado, fechaAlerta, mes: mesActual };
+}
+
+// ---------------------------------------------------------------------------
+// Plantilla oficial de intercambio con Excel (hoja "Envíos" del control real
+// de Canal Tradicional) — mismos 40 encabezados, en el mismo orden.
+// ---------------------------------------------------------------------------
+const PLANTILLA_HEADERS = ['Mes','Fecha Requisición','Solicitado por:','Marca','Dinámica','Requisición',
+  'Descripción Requisición','Elemento','Nombre del Elemento PEP','Proveedor','Brief','Link del Brief','Fecha Brief',
+  'Subcategoria','Comparativos / Cotización','Fecha de recepción comparativo','Link del Comparativo','OC','N° OC',
+  'Fecha OC','Arte','Costo Unitario VED','Costo Unitario','Cantidad','Total','Comentarios','Estatus','N° Factura',
+  'Gasto \nReal ','Comprometido','AUXILIAR','AUXILIAR2','Dias de producción','Fecha \nPrototipo',
+  'Aprobacion de prototipo','Fecha envio de Arte','Fecha de entrega de muestra','Aprobacion de muestra',
+  'Fecha de entrega','Columna1'];
+const SOLICITADO_POR = 'Andrea Chacón';
+const ELEMENTO_PRODUCTO = 'S.MKP-260014';
+const ELEMENTO_SERVICIO = 'S.MKP-260013';
+const NOMBRE_ELEMENTO_PEP = 'Materiales PDE';
+
+function normKey(s){
+  return String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[°:\n]/g,' ').replace(/\s+/g,' ').trim();
+}
+function backfillFechasImport(fechas){
+  const campos = STAGES.map(s=>s.dateField);
+  let siguienteConocida = null;
+  for(let i=campos.length-1;i>=0;i--){
+    const f = campos[i];
+    if(fechas[f]) siguienteConocida = fechas[f];
+    else if(siguienteConocida) fechas[f] = siguienteConocida;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Datos de ejemplo
+// ---------------------------------------------------------------------------
+function seedData(){
+  const mk = (o) => ({ id:o.id, producto:o.producto, proveedor:o.proveedor,
+    numeroRequisicion:o.numeroRequisicion||null, numeroOC:o.numeroOC||null,
+    costoUnitario: o.costoUnitario!=null ? o.costoUnitario : null, cantidad: o.cantidad!=null ? o.cantidad : 1,
+    tipoGasto: o.tipoGasto || 'producto',
+    creadoEn:o.creadoEn, mesInicio: o.mesInicio || o.creadoEn.slice(0,7), fechas:{...emptyFechas(), ...o.fechas}, historial: o.historial||[] });
+  return [
+    mk({id:'OC-2026-001', producto:'Vasos plásticos 12oz retornables', proveedor:'Plásticos Andinos, C.A.', creadoEn:isoDesdeHoy(-8), costoUnitario:0.85, cantidad:5000,
+      fechas:{briefingPublicado:isoDesdeHoy(-7)},
+      historial:[{fecha:isoDesdeHoy(-8),mensaje:'Orden creada'},{fecha:isoDesdeHoy(-7),mensaje:'Briefing publicado a Abastecimiento'}]}),
+    mk({id:'OC-2026-002', producto:'Neveras exhibidoras 3 puertas', proveedor:'Metalfrío Industrial', creadoEn:isoDesdeHoy(-14), costoUnitario:420, cantidad:6,
+      fechas:{briefingPublicado:isoDesdeHoy(-13)},
+      historial:[{fecha:isoDesdeHoy(-14),mensaje:'Orden creada'},{fecha:isoDesdeHoy(-13),mensaje:'Briefing publicado a Abastecimiento'},{fecha:isoDesdeHoy(-8),mensaje:'Recordatorio 1 enviado a Abastecimiento (día 5)'}]}),
+    mk({id:'OC-2026-003', producto:'Material POP navideño', proveedor:'Grafiplast, C.A.', creadoEn:isoDesdeHoy(-4), numeroRequisicion:'10118', costoUnitario:3.2, cantidad:800,
+      fechas:{briefingPublicado:isoDesdeHoy(-3), comparativoRecibido:isoDesdeHoy(-2), requisicionEmitida:isoDesdeHoy(-1)},
+      historial:[{fecha:isoDesdeHoy(-1),mensaje:'Requisición emitida'}]}),
+    mk({id:'OC-2026-004', producto:'Uniformes de impulsadoras', proveedor:'Confecciones Zuliana', creadoEn:isoDesdeHoy(-20), numeroRequisicion:'10091', numeroOC:'78823145', costoUnitario:8.5, cantidad:120, tipoGasto:'servicio',
+      fechas:{briefingPublicado:isoDesdeHoy(-19), comparativoRecibido:isoDesdeHoy(-15), requisicionEmitida:isoDesdeHoy(-14), ocEmitida:isoDesdeHoy(-13), muestraRecibida:isoDesdeHoy(-10), aprobacion:isoDesdeHoy(-5)},
+      historial:[{fecha:isoDesdeHoy(-5),mensaje:'Muestra aprobada — inicia entrega'}]}),
+    mk({id:'OC-2026-005', producto:'Hieleras promocionales de verano', proveedor:'Industrias del Frío', creadoEn:isoDesdeHoy(-25), numeroRequisicion:'10067', numeroOC:'78590432', costoUnitario:2.75, cantidad:600,
+      fechas:{briefingPublicado:isoDesdeHoy(-24), comparativoRecibido:isoDesdeHoy(-20), requisicionEmitida:isoDesdeHoy(-19), ocEmitida:isoDesdeHoy(-17), muestraRecibida:isoDesdeHoy(-14), aprobacion:isoDesdeHoy(-13), entregaReal:isoDesdeHoy(-1)},
+      historial:[{fecha:isoDesdeHoy(-1),mensaje:'Entrega confirmada — pendiente de cierre'}]}),
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Estado y persistencia
+// ---------------------------------------------------------------------------
+// Pega aquí la URL de tu implementación de Apps Script (termina en /exec) para
+// que la app quede compartida entre dispositivos, usando la misma Google Sheet
+// como base de datos. Si la dejas vacía, funciona solo en este navegador.
+const API_URL = '';
+const INTERVALO_POLLING_MS = 20000;
+
+const STORE_KEY = 'oc_canal_tradicional_v2';
+let state = {
+  orders: [], dmeMetas: {}, tab:'ordenes', dmeMes: hoyISO().slice(0,7),
+  view:'lista', selectedId:null,
+  filtroSem:'todos', filtroEstado:'todos',
+  fNombre:'', fProveedor:'todos', fRequisicion:'', fOC:'', fMes:'todos',
+  modal:null, modalErr:'', confirmDelete:false,
+  cargando:true, syncError:'',
+};
+let pollTimer = null;
+
+function migrarOrdenes(){
+  state.orders.forEach(o=>{
+    if(o.costoUnitario===undefined) o.costoUnitario = null;
+    if(o.cantidad===undefined) o.cantidad = 1;
+    if(o.tipoGasto===undefined) o.tipoGasto = 'producto';
+    if(!o.mesInicio) o.mesInicio = (o.creadoEn||hoyISO()).slice(0,7);
+  });
+}
+
+function cargarLocal(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(Array.isArray(parsed)){ state.orders = parsed; state.dmeMetas = {}; }
+      else{ state.orders = parsed.orders || seedData(); state.dmeMetas = parsed.dmeMetas || {}; }
+    } else {
+      state.orders = seedData();
+      state.dmeMetas = { [hoyISO().slice(0,7)]: {productos:8000, servicios:2000} };
+    }
+  }catch(e){ state.orders = seedData(); state.dmeMetas = {}; }
+  migrarOrdenes();
+}
+
+async function cargar(){
+  state.cargando = true;
+  if(API_URL){
+    try{
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error||'Respuesta inválida del servidor');
+      state.orders = data.ordenes || [];
+      state.dmeMetas = data.dmeMetas || {};
+      state.syncError = '';
+      migrarOrdenes();
+      state.cargando = false;
+      render();
+      iniciarPolling();
+      return;
+    }catch(e){
+      state.syncError = 'No se pudo conectar con Google Sheets. Mostrando la última copia guardada en este navegador.';
+    }
+  }
+  cargarLocal();
+  state.cargando = false;
+  render();
+}
+
+async function guardar(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify({ orders: state.orders, dmeMetas: state.dmeMetas })); }
+  catch(e){ /* almacenamiento local lleno o no disponible: seguimos igual, ya se intenta sincronizar arriba */ }
+  if(!API_URL) return;
+  try{
+    const res = await fetch(API_URL, { method:'POST', body: JSON.stringify({ accion:'guardar_todas', ordenes: state.orders, dmeMetas: state.dmeMetas }) });
+    const data = await res.json();
+    state.syncError = data.ok ? '' : 'No se pudo guardar en Google Sheets: ' + (data.error||'error desconocido');
+  }catch(e){
+    state.syncError = 'No se pudo guardar en Google Sheets (sin conexión). Tus cambios quedaron respaldados en este navegador.';
+  }
+  render();
+}
+
+// Refresca en segundo plano cada INTERVALO_POLLING_MS para ver cambios de otras
+// personas sin recargar. No interrumpe si hay un formulario o modal abierto,
+// para no perder algo que estés escribiendo.
+function iniciarPolling(){
+  if(!API_URL) return;
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    if(state.view === 'detalle' || state.modal) return;
+    try{
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      if(data.ok){
+        state.orders = data.ordenes || [];
+        state.dmeMetas = data.dmeMetas || {};
+        state.syncError = '';
+        migrarOrdenes();
+        render();
+      }
+    }catch(e){ /* fallo silencioso: no interrumpir con errores de refresco automático */ }
+  }, INTERVALO_POLLING_MS);
+}
+
+// ---------------------------------------------------------------------------
+// Acciones
+// ---------------------------------------------------------------------------
+const App = {
+  nuevaOrden(){ state.modal='nueva'; state.modalErr=''; render(); },
+  cerrarModal(){ state.modal=null; render(); },
+  crearOrden(){
+    const producto = document.getElementById('f-producto').value.trim();
+    const tipoGasto = document.getElementById('f-tipo').value;
+    const mesInicio = document.getElementById('f-mes').value || hoyISO().slice(0,7);
+    const creadoEn = hoyISO();
+    if(!producto){ state.modalErr = 'Escribe el producto o servicio antes de continuar.'; render(); return; }
+    const id = 'OC-2026-' + String(state.orders.length+1).padStart(3,'0');
+    state.orders.unshift({ id, producto, proveedor: '', creadoEn, mesInicio,
+      numeroRequisicion:null, numeroOC:null, costoUnitario:null, cantidad:1, tipoGasto,
+      fechas: emptyFechas(), historial:[{fecha:creadoEn, mensaje:'Orden creada'}] });
+    guardar(); state.modal=null; state.selectedId=id; state.view='detalle'; render();
+  },
+  verOrden(id){ state.selectedId=id; state.view='detalle'; state.confirmDelete=false; render(); },
+  volver(){ state.view='lista'; state.selectedId=null; render(); },
+  actualizarFecha(id, campo, valor){
+    const o = state.orders.find(x=>x.id===id); if(!o) return;
+    if(campo === '__creadoEn'){ o.creadoEn = valor || hoyISO(); guardar(); render(); return; }
+    const anterior = o.fechas[campo];
+    o.fechas[campo] = valor || null;
+    if(valor && valor !== anterior){
+      const etiqueta = (STAGES.find(s=>s.dateField===campo)||{}).inputLabel || CAMPOS_EXTRA.find(c=>c.key===campo)?.label || campo;
+      o.historial.push({fecha: valor, mensaje: `${etiqueta.split(' — ')[0]}: ${fmt(valor)}`});
+    }
+    guardar(); render();
+  },
+  actualizarCampoTexto(id, campo, valor){
+    const o = state.orders.find(x=>x.id===id); if(!o) return;
+    o[campo] = valor; guardar(); render();
+  },
+  actualizarCampoNumero(id, campo, valor){
+    const o = state.orders.find(x=>x.id===id); if(!o) return;
+    o[campo] = valor==='' ? null : Number(valor);
+    guardar(); render();
+  },
+  setTab(v){ state.tab=v; render(); },
+  setDmeMes(v){ state.dmeMes=v; render(); },
+  actualizarMeta(mes, tipo, valor){
+    if(!state.dmeMetas[mes]) state.dmeMetas[mes] = {productos:0, servicios:0};
+    state.dmeMetas[mes][tipo] = valor==='' ? 0 : Number(valor);
+    guardar(); render();
+  },
+  toggleFiltroSem(v){ state.filtroSem = (state.filtroSem===v) ? 'todos' : v; render(); },
+  setFiltroEstado(v){ state.filtroEstado=v; render(); },
+  setFNombre(v){ state.fNombre=v; render(); },
+  setFProveedor(v){ state.fProveedor=v; render(); },
+  setFRequisicion(v){ state.fRequisicion=v; render(); },
+  setFOC(v){ state.fOC=v; render(); },
+  setFMes(v){ state.fMes=v; render(); },
+  limpiarFiltros(){ state.filtroSem='todos'; state.filtroEstado='todos'; state.fNombre=''; state.fProveedor='todos'; state.fRequisicion=''; state.fOC=''; state.fMes='todos'; render(); },
+  pedirEliminar(){ state.confirmDelete=true; render(); },
+  cancelarEliminar(){ state.confirmDelete=false; render(); },
+  eliminarOrden(id){
+    state.orders = state.orders.filter(o=>o.id!==id);
+    guardar(); state.view='lista'; state.selectedId=null; state.confirmDelete=false; render();
+  },
+
+  exportarExcel(){
+    if(typeof XLSX === 'undefined'){ alert('No se pudo cargar la librería de Excel (revisa tu conexión a internet e intenta de nuevo).'); return; }
+    const filas = [PLANTILLA_HEADERS];
+    state.orders.forEach(o=>{
+      const estado = getEstado(o);
+      const monto = montoOrden(o);
+      const eg = estadoGasto(o);
+      const mesTxt = o.mesInicio ? (MESES[parseInt(o.mesInicio.split('-')[1],10)-1]||'') : '';
+      filas.push([
+        mesTxt,
+        o.fechas.requisicionEmitida ? fmt(o.fechas.requisicionEmitida) : '',
+        SOLICITADO_POR,
+        '', '',
+        o.numeroRequisicion || '',
+        o.producto || '',
+        o.tipoGasto==='servicio' ? ELEMENTO_SERVICIO : ELEMENTO_PRODUCTO,
+        NOMBRE_ELEMENTO_PEP,
+        o.proveedor || '',
+        o.fechas.briefingPublicado ? 'Enviado' : '',
+        '',
+        o.fechas.briefingPublicado ? fmt(o.fechas.briefingPublicado) : '',
+        '',
+        o.fechas.comparativoRecibido ? 'Recibido' : '',
+        o.fechas.comparativoRecibido ? fmt(o.fechas.comparativoRecibido) : '',
+        '',
+        o.fechas.ocEmitida ? 'Recibido' : '',
+        o.numeroOC || '',
+        o.fechas.ocEmitida ? fmt(o.fechas.ocEmitida) : '',
+        '',
+        '',
+        o.costoUnitario!=null ? o.costoUnitario : '',
+        o.cantidad!=null ? o.cantidad : '',
+        monto>0 ? monto : '',
+        '',
+        estado.completado ? 'Completado' : STAGES[estado.index].label,
+        '',
+        eg==='real' ? monto : '',
+        eg==='comprometido' ? monto : '',
+        '', '', '',
+        o.fechas.muestraEstimada ? fmt(o.fechas.muestraEstimada) : '',
+        '',
+        '',
+        o.fechas.muestraRecibida ? fmt(o.fechas.muestraRecibida) : '',
+        o.fechas.aprobacion ? fmt(o.fechas.aprobacion) : '',
+        o.fechas.entregaReal ? fmt(o.fechas.entregaReal) : '',
+        '',
+      ]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(filas);
+    ws['!cols'] = PLANTILLA_HEADERS.map(()=>({wch:16}));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Envíos');
+    XLSX.writeFile(wb, `Ordenes_Canal_Tradicional_${hoyISO()}.xlsx`);
+  },
+
+  importarArchivo(inputEl){
+    const file = inputEl.files && inputEl.files[0];
+    if(!file) return;
+    if(typeof XLSX === 'undefined'){ alert('No se pudo cargar la librería de Excel (revisa tu conexión a internet e intenta de nuevo).'); inputEl.value=''; return; }
+    const reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
+        let filasDatos = null, mapaColumnas = null;
+        for(const nombreHoja of wb.SheetNames){
+          const aoa = XLSX.utils.sheet_to_json(wb.Sheets[nombreHoja], {header:1, raw:true, defval:null});
+          for(let r=0; r<Math.min(aoa.length, 20); r++){
+            const fila = aoa[r];
+            if(!fila) continue;
+            if(fila.some(c=>normKey(c)==='descripcion requisicion')){
+              mapaColumnas = {};
+              fila.forEach((celda, idx)=>{ const k = normKey(celda); if(k && mapaColumnas[k]===undefined) mapaColumnas[k]=idx; });
+              filasDatos = aoa.slice(r+1);
+              break;
+            }
+          }
+          if(filasDatos) break;
+        }
+        if(!filasDatos){
+          alert('No se encontró una fila de encabezados reconocible (se busca la columna "Descripción Requisición") en el archivo.');
+          inputEl.value=''; return;
+        }
+        const col = (fila, key) => mapaColumnas[key]!==undefined ? fila[mapaColumnas[key]] : null;
+        const toISO = (v) => (v instanceof Date && !isNaN(v) && v.getFullYear() >= 2000) ? v.toISOString().slice(0,10) : null;
+
+        let importadas = 0;
+        filasDatos.forEach(fila=>{
+          if(!fila || fila.every(c=>c===null||c==='')) return;
+          const producto = col(fila,'descripcion requisicion');
+          if(!producto) return;
+
+          const elementoCell = String(col(fila,'elemento')||'');
+          const tipoGasto = elementoCell.includes('260013') ? 'servicio' : 'producto';
+
+          const fechas = emptyFechas();
+          fechas.briefingPublicado = toISO(col(fila,'fecha brief'));
+          fechas.comparativoRecibido = toISO(col(fila,'fecha de recepcion comparativo'));
+          fechas.requisicionEmitida = toISO(col(fila,'fecha requisicion'));
+          fechas.ocEmitida = toISO(col(fila,'fecha oc'));
+          fechas.muestraEstimada = toISO(col(fila,'fecha prototipo'));
+          fechas.muestraRecibida = toISO(col(fila,'fecha de entrega de muestra'));
+          fechas.aprobacion = toISO(col(fila,'aprobacion de muestra'));
+          fechas.entregaReal = toISO(col(fila,'fecha de entrega'));
+          backfillFechasImport(fechas);
+
+          const numeroRequisicion = col(fila,'requisicion') ? String(col(fila,'requisicion')) : null;
+          const numeroOC = col(fila,'n oc') ? String(col(fila,'n oc')) : null;
+          const costoUnitarioVal = Number(col(fila,'costo unitario'));
+          const costoUnitario = costoUnitarioVal>0 ? costoUnitarioVal : null;
+          const cantidadVal = Number(col(fila,'cantidad'));
+          const cantidad = cantidadVal>0 ? cantidadVal : 1;
+          const proveedor = col(fila,'proveedor') ? String(col(fila,'proveedor')) : '';
+
+          const creadoEn = fechas.briefingPublicado || fechas.requisicionEmitida || hoyISO();
+          const mesInicio = creadoEn.slice(0,7);
+          const id = 'OC-2026-' + String(state.orders.length+1).padStart(3,'0');
+
+          const historial = [{fecha:creadoEn, mensaje:'Orden importada desde Excel'}];
+          STAGES.forEach(s=>{ if(fechas[s.dateField]) historial.push({fecha:fechas[s.dateField], mensaje:`${s.inputLabel}: ${fmt(fechas[s.dateField])} (importado)`}); });
+
+          state.orders.push({ id, producto:String(producto), proveedor, creadoEn, mesInicio,
+            numeroRequisicion, numeroOC, costoUnitario, cantidad, tipoGasto, fechas, historial });
+          importadas++;
+        });
+
+        guardar();
+        state.view='lista'; state.tab='ordenes'; render();
+        alert(importadas>0 ? `Se importaron ${importadas} orden(es) desde el Excel.` : 'No se encontraron filas válidas para importar (revisa que el archivo tenga la columna "Descripción Requisición" con datos debajo).');
+      }catch(err){
+        alert('No se pudo leer el archivo: ' + err.message);
+      }
+      inputEl.value='';
+    };
+    reader.readAsArrayBuffer(file);
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Render
+// ---------------------------------------------------------------------------
+function badge(sem, texto){
+  const ic = sem==='rojo' ? ICONS.alertTriangle : sem==='amarillo' ? ICONS.clock : ICONS.check;
+  return `<span class="badge ${sem}">${ic}${esc(texto)}</span>`;
+}
+
+function renderTabBar(){
+  const alerta = alertaDMEInfo();
+  return `<div class="tabbar">
+    <button class="tab-btn ${state.tab==='ordenes'?'active':''}" onclick="App.setTab('ordenes')">Órdenes de compra</button>
+    <button class="tab-btn ${state.tab==='dme'?'active':''}" onclick="App.setTab('dme')">Control de DME${alerta?'<span class="tab-dot"></span>':''}</button>
+  </div>`;
+}
+
+function renderStepper(o){
+  const estado = getEstado(o);
+  return `<div class="stepper">${STAGES.map((s,i)=>{
+    const fechaVal = o.fechas[s.dateField];
+    const done = estado.completado ? true : i < estado.index;
+    const current = !estado.completado && i === estado.index;
+    const semActual = current ? computeStatus(o).semaforo : null;
+    let color = '#D8D2CC';
+    if(done) color = 'var(--green)';
+    else if(current) color = semActual==='rojo' ? 'var(--danger)' : semActual==='amarillo' ? '#D9970C' : 'var(--green)';
+    const circleBg = done ? 'var(--green-bg)' : current ? '#FFF8EC' : '#FAFAF9';
+    const connectorColor = (i < estado.index || estado.completado) ? 'var(--green)' : 'var(--border)';
+    const connector = i < STAGES.length-1 ? `<div class="connector" style="background:${connectorColor}"></div>` : '';
+    return `<div style="display:flex;align-items:flex-start;">
+      <div class="step-col">
+        <div class="step-circle" style="border-color:${color};color:${color};background:${circleBg};">${done?ICONS.check:(i+1)}</div>
+        <div class="step-label" style="font-weight:${current?700:500};color:${current?'var(--text)':'var(--text-muted)'};">${esc(s.label)}</div>
+        <div class="step-date">${fmt(fechaVal)}</div>
+      </div>${connector}</div>`;
+  }).join('')}</div>`;
+}
+
+function getFiltradas(){
+  const withStatus = state.orders.map(o=>({o, st:computeStatus(o)}));
+  let filtradas = withStatus.filter(({o,st})=>{
+    const estado = getEstado(o);
+    if(state.filtroSem==='todos') return true;
+    if(state.filtroSem==='completadas') return estado.completado;
+    return !estado.completado && st.semaforo===state.filtroSem;
+  }).filter(({o})=> state.filtroEstado==='todos' || STAGES[getEstado(o).index].key===state.filtroEstado || (state.filtroEstado==='cierre' && getEstado(o).completado))
+    .filter(({o})=>{
+      const q = state.fNombre.trim().toLowerCase();
+      return !q || o.producto.toLowerCase().includes(q);
+    })
+    .filter(({o})=> state.fProveedor==='todos' || o.proveedor === state.fProveedor)
+    .filter(({o})=>{
+      const q = state.fRequisicion.trim().toLowerCase();
+      return !q || (o.numeroRequisicion||'').toLowerCase().includes(q);
+    })
+    .filter(({o})=>{
+      const q = state.fOC.trim().toLowerCase();
+      return !q || (o.numeroOC||'').toLowerCase().includes(q);
+    })
+    .filter(({o})=> state.fMes==='todos' || (o.mesInicio||'')===state.fMes);
+
+  const rank = {rojo:0, amarillo:1, verde:2};
+  filtradas.sort((a,b)=>{
+    const ea=getEstado(a.o), eb=getEstado(b.o);
+    if(ea.completado!==eb.completado) return ea.completado?1:-1;
+    return (rank[a.st.semaforo]-rank[b.st.semaforo]) || (b.st.dias-a.st.dias);
+  });
+  return {withStatus, filtradas};
+}
+
+function renderDashboard(){
+  const {withStatus, filtradas} = getFiltradas();
+  const counts = {verde:0, amarillo:0, rojo:0, completadas:0};
+  withStatus.forEach(({o,st})=>{ const estado=getEstado(o); if(estado.completado) counts.completadas++; else counts[st.semaforo]++; });
+  const alertas = withStatus.filter(({o,st})=> !getEstado(o).completado && st.semaforo!=='verde')
+    .sort((a,b)=> (b.st.semaforo==='rojo'?1:0) - (a.st.semaforo==='rojo'?1:0) || b.st.dias-a.st.dias);
+
+  const cardsDef = [
+    {k:'verde', l:'Al día', v:counts.verde, ic:ICONS.check, iconBg:'var(--green-bg)', iconFg:'var(--green)'},
+    {k:'amarillo', l:'Requieren atención', v:counts.amarillo, ic:ICONS.clock, iconBg:'var(--amber-bg)', iconFg:'var(--amber)'},
+    {k:'rojo', l:'Vencidas / fuera de plazo', v:counts.rojo, ic:ICONS.alertTriangle, iconBg:'var(--danger-bg)', iconFg:'var(--danger)'},
+    {k:'completadas', l:'Completadas', v:counts.completadas, ic:ICONS.box, iconBg:'#EFEAE4', iconFg:'#8A8178'},
+  ];
+  const cardsHtml = cardsDef.map(c=>`<button class="count-card ${state.filtroSem===c.k?'active':''}" onclick="App.toggleFiltroSem('${c.k}')">
+      <div class="count-icon" style="background:${c.iconBg};color:${c.iconFg};">${c.ic}</div>
+      <div><div class="lbl">${esc(c.l)}</div><div class="val">${c.v}</div></div>
+    </button>`).join('');
+
+  const alertsHtml = alertas.length ? `<div class="alerts-card">
+      <div class="alerts-head">${ICONS.bell}<span class="t">Centro de alertas</span><span class="n">${alertas.length} orden(es)</span></div>
+      <div class="alerts-list">${alertas.map(({o,st})=>{
+        const ic = st.semaforo==='rojo' ? ICONS.alertTriangle : ICONS.clock;
+        const iconBg = st.semaforo==='rojo' ? 'var(--danger-bg)' : 'var(--amber-bg)';
+        const iconFg = st.semaforo==='rojo' ? 'var(--danger)' : 'var(--amber)';
+        return `<div class="alert-item ${st.semaforo}" onclick="App.verOrden('${o.id}')">
+          <div class="alert-icon" style="background:${iconBg};color:${iconFg};">${ic}</div>
+          <div class="alert-body">
+            <div class="alert-title">${esc(o.producto)} <span class="faint">· ${esc(o.id)}</span></div>
+            <div class="alert-sub">${esc(STAGES[st.index].label)} · ${esc(STAGES[st.index].responsable)}</div>
+          </div>
+          <div>
+            <div class="alert-time ${st.semaforo}">${esc(st.mensaje)}</div>
+            ${st.escalado ? `<div class="escal-tag">Escalar a Gerencia</div>` : ''}
+          </div>
+        </div>`;
+      }).join('')}</div>
+    </div>` : '';
+
+  const proveedores = [...new Set(state.orders.map(o=>o.proveedor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const opcionesEstado = ['<option value="todos">Todas las etapas</option>']
+    .concat(STAGES.map(s=>`<option value="${s.key}" ${state.filtroEstado===s.key?'selected':''}>${esc(s.label)}</option>`)).join('');
+  const opcionesProveedor = ['<option value="todos">Todos los proveedores</option>']
+    .concat(proveedores.map(p=>`<option value="${esc(p)}" ${state.fProveedor===p?'selected':''}>${esc(p)}</option>`)).join('');
+  const mesesDisponibles = [...new Set(state.orders.map(o=>o.mesInicio||'').filter(Boolean))].sort().reverse();
+  const opcionesMes = ['<option value="todos">Todos los meses</option>']
+    .concat(mesesDisponibles.map(m=>`<option value="${m}" ${state.fMes===m?'selected':''}>${esc(mesLabel(m))}</option>`)).join('');
+
+  const filtrosActivos = state.filtroSem!=='todos' || state.filtroEstado!=='todos' || state.fNombre || state.fProveedor!=='todos' || state.fRequisicion || state.fOC || state.fMes!=='todos';
+
+  const rowsHtml = filtradas.length ? filtradas.map(({o,st})=>{
+    const estado = getEstado(o);
+    const etapaLabel = estado.completado ? 'Completada' : STAGES[estado.index].label;
+    const resp = estado.completado ? '' : STAGES[estado.index].responsable;
+    const sem = estado.completado ? 'verde' : st.semaforo;
+    const proveedorTxt = o.proveedor ? esc(o.proveedor) : `<span class="faint" style="font-style:italic;">Proveedor pendiente</span>`;
+    const monto = montoOrden(o);
+    const refs = [o.numeroRequisicion?`Req ${esc(o.numeroRequisicion)}`:null, o.numeroOC?`OC ${esc(o.numeroOC)}`:null, monto>0?fmtMoney(monto):null].filter(Boolean).join(' · ');
+    return `<div class="order-card" onclick="App.verOrden('${o.id}')">
+      <div class="order-status-bar ${sem}"></div>
+      <div class="order-main">
+        <div class="order-title">${esc(o.producto)}</div>
+        <div class="order-sub">${esc(o.id)} · ${proveedorTxt}${refs?' · '+refs:''}</div>
+      </div>
+      <div class="order-stage">
+        <div class="st-label">${esc(etapaLabel)}</div>
+        <div class="st-resp">${esc(resp)}</div>
+      </div>
+      <div class="order-time" style="color:${estado.completado ? 'var(--green)' : (sem==='rojo'?'var(--danger)':sem==='amarillo'?'var(--amber)':'var(--green)')};">${estado.completado?'Completada':esc(st.mensaje)}</div>
+      <div class="chev">${ICONS.chev}</div>
+    </div>`;
+  }).join('') : `<div class="empty-msg">No hay órdenes que coincidan con los filtros seleccionados.${filtrosActivos?` <button class="btn-link" onclick="App.limpiarFiltros()">Limpiar filtros</button>`:''}</div>`;
+
+  return `
+    <div class="row" style="margin-bottom:20px;">
+      <div>
+        <h2 style="font-size:20px;">Seguimiento de compras</h2>
+        <div class="muted" style="font-size:12.5px;margin-top:3px;">${state.orders.length} orden(es) registradas · ${counts.completadas} completada(s)</div>
+      </div>
+      <button class="btn btn-primary" onclick="App.nuevaOrden()">+ Nueva orden</button>
+    </div>
+    <div class="row" style="margin-bottom:16px;gap:8px;">
+      <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;" onchange="App.importarArchivo(this)">
+      <button class="btn btn-outline" onclick="document.getElementById('import-file').click()">Importar desde Excel</button>
+      <button class="btn btn-outline" onclick="App.exportarExcel()">Exportar a Excel</button>
+    </div>
+    <div class="counts">${cardsHtml}</div>
+    ${alertsHtml}
+    <div class="card">
+      <div class="filters-grid">
+        <div class="field-box"><label class="field-label">Nombre</label>
+          <input type="text" id="filtro-nombre" placeholder="Buscar por producto" value="${esc(state.fNombre)}" oninput="App.setFNombre(this.value)"></div>
+        <div class="field-box"><label class="field-label">Proveedor</label>
+          <select onchange="App.setFProveedor(this.value)">${opcionesProveedor}</select></div>
+        <div class="field-box"><label class="field-label">N&deg; de requisición</label>
+          <input type="text" id="filtro-req" inputmode="numeric" maxlength="6" placeholder="Ej. 7861" value="${esc(state.fRequisicion)}" oninput="App.setFRequisicion(this.value)"></div>
+        <div class="field-box"><label class="field-label">N&deg; de OC</label>
+          <input type="text" id="filtro-oc" inputmode="numeric" maxlength="10" placeholder="Ej. 5500084844" value="${esc(state.fOC)}" oninput="App.setFOC(this.value)"></div>
+        <div class="field-box"><label class="field-label">Etapa</label>
+          <select onchange="App.setFiltroEstado(this.value)">${opcionesEstado}</select></div>
+        <div class="field-box"><label class="field-label">Mes de inicio</label>
+          <select onchange="App.setFMes(this.value)">${opcionesMes}</select></div>
+      </div>
+      ${filtrosActivos ? `<div style="margin-top:10px;"><button class="btn-link" onclick="App.limpiarFiltros()">Limpiar todos los filtros</button></div>` : ''}
+    </div>
+    <div class="order-list">${rowsHtml}</div>
+    <div class="footer-note">Todos los plazos se calculan en días hábiles (lunes a viernes). Los datos se guardan en este navegador.</div>
+  `;
+}
+
+function renderDetalle(o){
+  const estado = getEstado(o);
+  const st = computeStatus(o);
+  const sem = estado.completado ? 'verde' : st.semaforo;
+  const msg = estado.completado ? 'Completada' : st.mensaje;
+
+  const camposObligatorios = STAGES.map(s=>`
+    <div class="field-box">
+      <label class="field-label">${esc(s.inputLabel)} <span class="opt-tag">(${esc(s.responsable)})</span></label>
+      <input type="date" value="${o.fechas[s.dateField]||''}" onchange="App.actualizarFecha('${o.id}','${s.dateField}',this.value)">
+    </div>`).join('');
+  const camposExtra = CAMPOS_EXTRA.map(c=>`
+    <div class="field-box">
+      <label class="field-label">${esc(c.label)}</label>
+      <input type="date" value="${o.fechas[c.key]||''}" onchange="App.actualizarFecha('${o.id}','${c.key}',this.value)">
+    </div>`).join('');
+
+  const historialHtml = o.historial.length ? [...o.historial].reverse().map(h=>`
+      <div class="hist-item"><span class="hist-date">${fmt(h.fecha)}</span><span>${esc(h.mensaje)}</span></div>`).join('')
+    : `<div class="muted" style="font-size:12.5px;">Sin eventos registrados todavía.</div>`;
+
+  const deleteHtml = !state.confirmDelete
+    ? `<button class="btn btn-danger" onclick="App.pedirEliminar()">Eliminar orden</button>`
+    : `<span style="font-size:12.5px;color:var(--danger);">¿Confirmar eliminación?
+        <button class="btn-link" style="color:var(--danger);font-weight:700;text-decoration:underline;" onclick="App.eliminarOrden('${o.id}')">Sí, eliminar</button> ·
+        <button class="btn-link" onclick="App.cancelarEliminar()">Cancelar</button></span>`;
+
+  return `
+    <button class="btn-link" onclick="App.volver()">${ICONS.chev.replace('m9 18 6-6-6-6','m15 18-6-6 6-6')} Volver</button>
+    <div class="row" style="margin-top:14px;margin-bottom:4px;">
+      <div>
+        <div class="order-sub" style="font-size:12px;">${esc(o.id)}</div>
+        <h3 style="font-size:20px;margin:3px 0 4px;">${esc(o.producto)}</h3>
+        <div class="muted" style="font-size:13px;">${o.proveedor ? esc(o.proveedor) : `<span style="font-style:italic;">Proveedor pendiente — se define al recibir la OC</span>`}</div>
+      </div>
+      ${badge(sem, msg)}
+    </div>
+    <div class="card" style="margin-top:16px;">${renderStepper(o)}</div>
+
+    <div class="card">
+      <h4 style="font-size:13px;margin-bottom:4px;">Datos generales</h4>
+      <div class="fields-grid" style="margin-top:10px;">
+        <div class="field-box">
+          <label class="field-label">Producto o servicio</label>
+          <input type="text" value="${esc(o.producto)}" onchange="App.actualizarCampoTexto('${o.id}','producto',this.value)">
+        </div>
+        <div class="field-box">
+          <label class="field-label">Proveedor <span class="opt-tag">(se define al recibir la OC)</span></label>
+          <input type="text" placeholder="Se completa cuando llegue la orden de compra" value="${esc(o.proveedor)}" onchange="App.actualizarCampoTexto('${o.id}','proveedor',this.value)">
+        </div>
+        <div class="field-box">
+          <label class="field-label">Fecha de creación <span class="opt-tag">(para el cálculo de plazos)</span></label>
+          <input type="date" value="${o.creadoEn}" onchange="App.actualizarFecha('${o.id}','__creadoEn',this.value)">
+        </div>
+        <div class="field-box">
+          <label class="field-label">Mes de inicio <span class="opt-tag">(para filtros y DME — editable aparte)</span></label>
+          <input type="month" value="${o.mesInicio}" onchange="App.actualizarCampoTexto('${o.id}','mesInicio',this.value)">
+        </div>
+        <div class="field-box">
+          <label class="field-label">N&uacute;mero de requisición <span class="opt-tag">(opcional, 5 dígitos)</span></label>
+          <input type="text" inputmode="numeric" maxlength="6" placeholder="Ej. 7861" value="${esc(o.numeroRequisicion||'')}" onchange="App.actualizarCampoTexto('${o.id}','numeroRequisicion',this.value)">
+        </div>
+        <div class="field-box">
+          <label class="field-label">N&uacute;mero de OC <span class="opt-tag">(opcional, 8 dígitos)</span></label>
+          <input type="text" inputmode="numeric" maxlength="10" placeholder="Ej. 5500084844" value="${esc(o.numeroOC||'')}" onchange="App.actualizarCampoTexto('${o.id}','numeroOC',this.value)">
+        </div>
+        <div class="field-box">
+          <label class="field-label">Tipo de gasto</label>
+          <select onchange="App.actualizarCampoTexto('${o.id}','tipoGasto',this.value)">
+            <option value="producto" ${o.tipoGasto==='producto'?'selected':''}>Producto</option>
+            <option value="servicio" ${o.tipoGasto==='servicio'?'selected':''}>Servicio (Flete)</option>
+          </select>
+        </div>
+        <div class="field-box">
+          <label class="field-label">Costo unitario</label>
+          <input type="number" min="0" step="0.01" placeholder="0.00" value="${o.costoUnitario!=null?o.costoUnitario:''}" onchange="App.actualizarCampoNumero('${o.id}','costoUnitario',this.value)">
+        </div>
+        <div class="field-box">
+          <label class="field-label">Cantidad</label>
+          <input type="number" min="0" step="1" placeholder="1" value="${o.cantidad!=null?o.cantidad:''}" onchange="App.actualizarCampoNumero('${o.id}','cantidad',this.value)">
+        </div>
+      </div>
+      <div class="muted" style="font-size:12.5px;margin-top:12px;">Monto total: <strong style="color:var(--text);">${fmtMoney(montoOrden(o))}</strong> — ${
+        estadoGasto(o)==='real' ? '<span style="color:var(--green);font-weight:600;">cuenta como gasto real</span>'
+        : estadoGasto(o)==='comprometido' ? '<span style="color:var(--amber);font-weight:600;">cuenta como gasto comprometido</span>'
+        : 'aún no cuenta para el DME (falta emitir la requisición)'
+      }</div>
+    </div>
+
+    <div class="card">
+      <h4 style="font-size:13px;margin-bottom:2px;">Fechas del proceso</h4>
+      <div class="muted" style="font-size:12px;margin-bottom:12px;">Registra la fecha real de cada hito en cuanto ocurra — la etapa activa y las alertas se recalculan solas.</div>
+      <div class="fields-grid">${camposObligatorios}${camposExtra}</div>
+    </div>
+
+    <div class="card">
+      <h4 style="font-size:13px;margin-bottom:10px;">Historial</h4>
+      ${historialHtml}
+    </div>
+
+    <div style="text-align:right;margin-top:6px;">${deleteHtml}</div>
+  `;
+}
+
+function renderDME(){
+  const mesActualReal = hoyISO().slice(0,7);
+  const mesesDisponibles = new Set(state.orders.map(o=>o.mesInicio||'').filter(Boolean));
+  mesesDisponibles.add(mesActualReal);
+  Object.keys(state.dmeMetas).forEach(m=>mesesDisponibles.add(m));
+  const listaMeses = [...mesesDisponibles].sort().reverse();
+  if(!listaMeses.includes(state.dmeMes)) state.dmeMes = mesActualReal;
+
+  const opciones = listaMeses.map(m=>`<option value="${m}" ${state.dmeMes===m?'selected':''}>${esc(mesLabel(m))}</option>`).join('');
+
+  const meta = state.dmeMetas[state.dmeMes] || {productos:0, servicios:0};
+  const r = resumenDME(state.dmeMes);
+  const metaTotal = (Number(meta.productos)||0) + (Number(meta.servicios)||0);
+  const ejecTotal = r.compTotal + r.realTotal;
+  const restante = metaTotal - ejecTotal;
+
+  const alerta = alertaDMEInfo();
+  const alertaHtml = (alerta && alerta.mes === state.dmeMes) ? `<div class="dme-alert">
+      ${ICONS.bell}
+      <div>
+        <div style="font-weight:700;font-size:13.5px;">Ya pasó el penúltimo miércoles del mes</div>
+        <div style="font-size:12.5px;margin-top:2px;">Te faltan <strong>${fmtMoney(alerta.restante)}</strong> por ejecutar para llegar al 100% del DME de ${esc(mesLabel(alerta.mes))}.</div>
+      </div>
+    </div>` : '';
+
+  function barra(label, ejecutado, metaVal, color){
+    const p = metaVal>0 ? Math.min(100, (ejecutado/metaVal)*100) : 0;
+    return `<div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px;">
+        <span class="muted" style="font-weight:600;">${esc(label)}</span>
+        <span><strong>${fmtMoney(ejecutado)}</strong> <span class="faint">/ ${fmtMoney(metaVal)}</span></span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:${p}%;background:${color};"></div></div>
+    </div>`;
+  }
+
+  return `
+    ${alertaHtml}
+    <div class="row" style="margin-bottom:18px;align-items:flex-end;">
+      <div>
+        <h2 style="font-size:20px;">Control de DME</h2>
+        <div class="muted" style="font-size:12.5px;margin-top:3px;">Desembolso mensual estimado — gasto comprometido y real por mes</div>
+      </div>
+      <div class="field-box" style="min-width:200px;">
+        <label class="field-label">Mes</label>
+        <select onchange="App.setDmeMes(this.value)">${opciones}</select>
+      </div>
+    </div>
+
+    <div class="card">${burbujaDME(ejecTotal, metaTotal)}</div>
+
+    <div class="card">
+      <h4 style="font-size:13px;margin-bottom:2px;">Meta de DME para ${esc(mesLabel(state.dmeMes))}</h4>
+      <div class="muted" style="font-size:12px;margin-bottom:12px;">Por defecto queda en cero — regístrala tú cada mes.</div>
+      <div class="fields-grid">
+        <div class="field-box">
+          <label class="field-label">Productos</label>
+          <input type="number" min="0" step="0.01" placeholder="0.00" value="${meta.productos||''}" onchange="App.actualizarMeta('${state.dmeMes}','productos',this.value)">
+        </div>
+        <div class="field-box">
+          <label class="field-label">Servicios (Flete)</label>
+          <input type="number" min="0" step="0.01" placeholder="0.00" value="${meta.servicios||''}" onchange="App.actualizarMeta('${state.dmeMes}','servicios',this.value)">
+        </div>
+      </div>
+      <div class="muted" style="font-size:12px;margin-top:10px;">Meta total del mes: <strong style="color:var(--text);">${fmtMoney(metaTotal)}</strong></div>
+    </div>
+
+    <div class="card">
+      <h4 style="font-size:13px;margin-bottom:14px;">Ejecución del mes</h4>
+      ${barra('Total (comprometido + real)', ejecTotal, metaTotal, 'var(--red)')}
+      ${barra('Productos', r.compProd+r.realProd, Number(meta.productos)||0, '#8A8178')}
+      ${barra('Servicios (Flete)', r.compServ+r.realServ, Number(meta.servicios)||0, '#8A8178')}
+      <div class="muted" style="font-size:12.5px;margin-top:4px;">${restante>0 ? `Falta <strong style="color:var(--text);">${fmtMoney(restante)}</strong> por ejecutar para llegar al 100%.` : `Meta alcanzada${restante<0?` (${fmtMoney(-restante)} por encima)`:''}.`}</div>
+    </div>
+
+    <div class="row" style="gap:16px;align-items:stretch;">
+      <div class="card" style="flex:1;min-width:260px;">
+        <h4 style="font-size:13px;margin-bottom:4px;color:var(--amber);">Gasto comprometido</h4>
+        <div class="muted" style="font-size:12px;">Requisición emitida, pendiente de entrega completa</div>
+        <div style="margin-top:12px;font-size:13px;">
+          <div style="display:flex;justify-content:space-between;"><span>Productos</span><strong>${fmtMoney(r.compProd)}</strong></div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;"><span>Servicios (Flete)</span><strong>${fmtMoney(r.compServ)}</strong></div>
+          <div style="display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft);"><span>Total</span><strong>${fmtMoney(r.compTotal)}</strong></div>
+        </div>
+      </div>
+      <div class="card" style="flex:1;min-width:260px;">
+        <h4 style="font-size:13px;margin-bottom:4px;color:var(--green);">Gasto real</h4>
+        <div class="muted" style="font-size:12px;">Entrega completa confirmada por el proveedor</div>
+        <div style="margin-top:12px;font-size:13px;">
+          <div style="display:flex;justify-content:space-between;"><span>Productos</span><strong>${fmtMoney(r.realProd)}</strong></div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;"><span>Servicios (Flete)</span><strong>${fmtMoney(r.realServ)}</strong></div>
+          <div style="display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft);"><span>Total</span><strong>${fmtMoney(r.realTotal)}</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-note">El gasto pasa de comprometido a real automáticamente al registrar la fecha de "Entrega completa" en la orden — nunca se cuentan los dos a la vez. El mes de cada orden es su "mes de inicio" (fecha de creación). La alerta de ejecución solo aparece dentro de esta pantalla a partir del penúltimo miércoles del mes actual; no envía notificaciones fuera del navegador.</div>
+  `;
+}
+
+function renderModal(){
+  if(state.modal !== 'nueva') return '';
+  return `<div class="modal-overlay" onclick="if(event.target===this) App.cerrarModal()">
+    <div class="modal">
+      <h3>Nueva orden de compra</h3>
+      <div class="field-box" style="margin-bottom:10px;"><label class="field-label">Producto o servicio</label>
+        <input type="text" id="f-producto" placeholder="Ej. Sombrillas publicitarias" autofocus></div>
+      <div class="field-box" style="margin-bottom:10px;"><label class="field-label">Tipo de gasto</label>
+        <select id="f-tipo">
+          <option value="producto" selected>Producto</option>
+          <option value="servicio">Servicio (Flete)</option>
+        </select></div>
+      <div class="field-box" style="margin-bottom:4px;"><label class="field-label">Mes de inicio <span class="opt-tag">(para filtros y DME)</span></label>
+        <input type="month" id="f-mes" value="${hoyISO().slice(0,7)}"></div>
+      ${state.modalErr ? `<div class="err">${esc(state.modalErr)}</div>` : ''}
+      <div class="row" style="margin-top:16px;justify-content:flex-end;">
+        <button class="btn btn-outline" onclick="App.cerrarModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="App.crearOrden()">Crear orden</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function render(){
+  const root = document.getElementById('app');
+  if(state.cargando){
+    root.innerHTML = '<div class="empty-msg" style="padding:60px 0;">Cargando órdenes…</div>';
+    return;
+  }
+  const activo = document.activeElement;
+  const activoId = activo && activo.id ? activo.id : null;
+  const selStart = activo && typeof activo.selectionStart === 'number' ? activo.selectionStart : null;
+  const selEnd = activo && typeof activo.selectionEnd === 'number' ? activo.selectionEnd : null;
+
+  let html;
+  if(state.tab === 'dme'){
+    html = renderDME();
+  } else if(state.view==='detalle' && state.selectedId){
+    const o = state.orders.find(x=>x.id===state.selectedId);
+    html = o ? renderDetalle(o) : (state.view='lista', renderDashboard());
+  } else {
+    html = renderDashboard();
+  }
+  const syncHtml = state.syncError ? `<div class="footer-note" style="color:var(--danger);">${esc(state.syncError)}</div>` : '';
+  root.innerHTML = renderTabBar() + html + syncHtml + renderModal();
+
+  if(activoId){
+    const el = document.getElementById(activoId);
+    if(el){
+      el.focus();
+      if(selStart !== null && el.setSelectionRange){ try{ el.setSelectionRange(selStart, selEnd); }catch(e){} }
+    }
+  }
+}
+
+cargar();
+document.getElementById('app-version').textContent = APP_VERSION;
+</script>
+</body>
+</html>
