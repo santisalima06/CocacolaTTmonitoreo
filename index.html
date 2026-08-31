@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Supabase JS Client (v2 CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --red:#E4002B; --red-dark:#A3001F; --red-light:#FDEAEE; --red-softest:#FFF5F6;
@@ -139,7 +141,7 @@
   .hist-date{font-family:var(--mono);color:var(--text-faint);flex-shrink:0;}
   .footer-note{margin-top:20px;font-size:11.5px;color:var(--text-faint);}
   .empty-msg{padding:30px 0;text-align:center;color:var(--text-faint);font-size:13px;}
-  ::placeholder{color:var(--text-faint);}
+  ::-placeholder{color:var(--text-faint);}
   ::-webkit-scrollbar{height:8px;width:8px;} ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
 </style>
 </head>
@@ -159,7 +161,16 @@
 // ---------------------------------------------------------------------------
 // Versión de la app — súbela cada vez que se entregue un cambio nuevo
 // ---------------------------------------------------------------------------
-const APP_VERSION = '2.5';
+const APP_VERSION = '3.0 (Supabase Realtime)';
+
+// ---------------------------------------------------------------------------
+// Configuración e Inicialización de Supabase
+// REEMPLAZA ESTOS VALORES CON TUS CREDENCIALES DE SUPABASE
+// ---------------------------------------------------------------------------
+const SUPABASE_URL = 'https://TU_PROYECTO.supabase.co';
+const SUPABASE_KEY = 'TU_ANON_KEY_PUBLIC';
+
+const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 // ---------------------------------------------------------------------------
 // Iconos (SVG inline, sin dependencias externas)
@@ -219,15 +230,11 @@ const emptyFechas = () => ({
   entregaReal:null, cierre:null,
 });
 
-// La etapa activa se DERIVA de los datos: la primera etapa sin fecha registrada.
 function getEstado(o){
   for(let i=0;i<STAGES.length;i++){ if(!o.fechas[STAGES[i].dateField]) return {index:i, completado:false}; }
   return {index:7, completado:true};
 }
 
-// ---------------------------------------------------------------------------
-// Estatus + mensaje de tiempo, redactado en términos claros de "vence en" / "vencida hace"
-// ---------------------------------------------------------------------------
 function computeStatus(o){
   const estado = getEstado(o);
   if(estado.completado) return {dias:0, semaforo:'verde', mensaje:'Completada', sub:'Todas las etapas registradas', escalado:false, index:7};
@@ -296,11 +303,6 @@ function burbujaDME(ejecutado, meta){
   </div>`;
 }
 
-// ---------------------------------------------------------------------------
-// DME — gasto comprometido (requisición emitida, sin entrega) vs. gasto real
-// (entrega completa confirmada). Un gasto deja de ser comprometido en cuanto
-// pasa a ser real, nunca se cuentan los dos a la vez.
-// ---------------------------------------------------------------------------
 function montoOrden(o){
   const costo = Number(o.costoUnitario)||0;
   const cant = Number(o.cantidad)||0;
@@ -323,98 +325,10 @@ function resumenDME(mes){
   });
   return { compProd, compServ, compTotal: compProd+compServ, realProd, realServ, realTotal: realProd+realServ };
 }
-function miercolesDelMes(year, monthIndex0){
-  const dias = []; const d = new Date(year, monthIndex0, 1);
-  while(d.getMonth()===monthIndex0){ if(d.getDay()===3) dias.push(new Date(d)); d.setDate(d.getDate()+1); }
-  return dias;
-}
-function penultimoMiercoles(year, monthIndex0){
-  const mies = miercolesDelMes(year, monthIndex0);
-  return mies.length ? mies[Math.max(0, mies.length-2)] : null;
-}
-function alertaDMEInfo(){
-  const hoy = new Date(new Date().toDateString());
-  const fechaAlerta = penultimoMiercoles(hoy.getFullYear(), hoy.getMonth());
-  if(!fechaAlerta || hoy < fechaAlerta) return null;
-  const mesActual = hoyISO().slice(0,7);
-  const meta = state.dmeMetas[mesActual] || {productos:0, servicios:0};
-  const metaTotal = (Number(meta.productos)||0) + (Number(meta.servicios)||0);
-  if(metaTotal <= 0) return null;
-  const r = resumenDME(mesActual);
-  const ejecutado = r.compTotal + r.realTotal;
-  const restante = metaTotal - ejecutado;
-  if(restante <= 0) return null;
-  return { restante, metaTotal, ejecutado, fechaAlerta, mes: mesActual };
-}
 
 // ---------------------------------------------------------------------------
-// Plantilla oficial de intercambio con Excel (hoja "Envíos" del control real
-// de Canal Tradicional) — mismos 40 encabezados, en el mismo orden.
+// Estado y persistencia con Supabase y Realtime
 // ---------------------------------------------------------------------------
-const PLANTILLA_HEADERS = ['Mes','Fecha Requisición','Solicitado por:','Marca','Dinámica','Requisición',
-  'Descripción Requisición','Elemento','Nombre del Elemento PEP','Proveedor','Brief','Link del Brief','Fecha Brief',
-  'Subcategoria','Comparativos / Cotización','Fecha de recepción comparativo','Link del Comparativo','OC','N° OC',
-  'Fecha OC','Arte','Costo Unitario VED','Costo Unitario','Cantidad','Total','Comentarios','Estatus','N° Factura',
-  'Gasto \nReal ','Comprometido','AUXILIAR','AUXILIAR2','Dias de producción','Fecha \nPrototipo',
-  'Aprobacion de prototipo','Fecha envio de Arte','Fecha de entrega de muestra','Aprobacion de muestra',
-  'Fecha de entrega','Columna1'];
-const SOLICITADO_POR = 'Andrea Chacón';
-const ELEMENTO_PRODUCTO = 'S.MKP-260014';
-const ELEMENTO_SERVICIO = 'S.MKP-260013';
-const NOMBRE_ELEMENTO_PEP = 'Materiales PDE';
-
-function normKey(s){
-  return String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .replace(/[°:\n]/g,' ').replace(/\s+/g,' ').trim();
-}
-function backfillFechasImport(fechas){
-  const campos = STAGES.map(s=>s.dateField);
-  let siguienteConocida = null;
-  for(let i=campos.length-1;i>=0;i--){
-    const f = campos[i];
-    if(fechas[f]) siguienteConocida = fechas[f];
-    else if(siguienteConocida) fechas[f] = siguienteConocida;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Datos de ejemplo
-// ---------------------------------------------------------------------------
-function seedData(){
-  const mk = (o) => ({ id:o.id, producto:o.producto, proveedor:o.proveedor,
-    numeroRequisicion:o.numeroRequisicion||null, numeroOC:o.numeroOC||null,
-    costoUnitario: o.costoUnitario!=null ? o.costoUnitario : null, cantidad: o.cantidad!=null ? o.cantidad : 1,
-    tipoGasto: o.tipoGasto || 'producto',
-    creadoEn:o.creadoEn, mesInicio: o.mesInicio || o.creadoEn.slice(0,7), fechas:{...emptyFechas(), ...o.fechas}, historial: o.historial||[] });
-  return [
-    mk({id:'OC-2026-001', producto:'Vasos plásticos 12oz retornables', proveedor:'Plásticos Andinos, C.A.', creadoEn:isoDesdeHoy(-8), costoUnitario:0.85, cantidad:5000,
-      fechas:{briefingPublicado:isoDesdeHoy(-7)},
-      historial:[{fecha:isoDesdeHoy(-8),mensaje:'Orden creada'},{fecha:isoDesdeHoy(-7),mensaje:'Briefing publicado a Abastecimiento'}]}),
-    mk({id:'OC-2026-002', producto:'Neveras exhibidoras 3 puertas', proveedor:'Metalfrío Industrial', creadoEn:isoDesdeHoy(-14), costoUnitario:420, cantidad:6,
-      fechas:{briefingPublicado:isoDesdeHoy(-13)},
-      historial:[{fecha:isoDesdeHoy(-14),mensaje:'Orden creada'},{fecha:isoDesdeHoy(-13),mensaje:'Briefing publicado a Abastecimiento'},{fecha:isoDesdeHoy(-8),mensaje:'Recordatorio 1 enviado a Abastecimiento (día 5)'}]}),
-    mk({id:'OC-2026-003', producto:'Material POP navideño', proveedor:'Grafiplast, C.A.', creadoEn:isoDesdeHoy(-4), numeroRequisicion:'10118', costoUnitario:3.2, cantidad:800,
-      fechas:{briefingPublicado:isoDesdeHoy(-3), comparativoRecibido:isoDesdeHoy(-2), requisicionEmitida:isoDesdeHoy(-1)},
-      historial:[{fecha:isoDesdeHoy(-1),mensaje:'Requisición emitida'}]}),
-    mk({id:'OC-2026-004', producto:'Uniformes de impulsadoras', proveedor:'Confecciones Zuliana', creadoEn:isoDesdeHoy(-20), numeroRequisicion:'10091', numeroOC:'78823145', costoUnitario:8.5, cantidad:120, tipoGasto:'servicio',
-      fechas:{briefingPublicado:isoDesdeHoy(-19), comparativoRecibido:isoDesdeHoy(-15), requisicionEmitida:isoDesdeHoy(-14), ocEmitida:isoDesdeHoy(-13), muestraRecibida:isoDesdeHoy(-10), aprobacion:isoDesdeHoy(-5)},
-      historial:[{fecha:isoDesdeHoy(-5),mensaje:'Muestra aprobada — inicia entrega'}]}),
-    mk({id:'OC-2026-005', producto:'Hieleras promocionales de verano', proveedor:'Industrias del Frío', creadoEn:isoDesdeHoy(-25), numeroRequisicion:'10067', numeroOC:'78590432', costoUnitario:2.75, cantidad:600,
-      fechas:{briefingPublicado:isoDesdeHoy(-24), comparativoRecibido:isoDesdeHoy(-20), requisicionEmitida:isoDesdeHoy(-19), ocEmitida:isoDesdeHoy(-17), muestraRecibida:isoDesdeHoy(-14), aprobacion:isoDesdeHoy(-13), entregaReal:isoDesdeHoy(-1)},
-      historial:[{fecha:isoDesdeHoy(-1),mensaje:'Entrega confirmada — pendiente de cierre'}]}),
-  ];
-}
-
-// ---------------------------------------------------------------------------
-// Estado y persistencia
-// ---------------------------------------------------------------------------
-// Pega aquí la URL de tu implementación de Apps Script (termina en /exec) para
-// que la app quede compartida entre dispositivos, usando la misma Google Sheet
-// como base de datos. Si la dejas vacía, funciona solo en este navegador.
-const API_URL = '';
-const INTERVALO_POLLING_MS = 20000;
-
-const STORE_KEY = 'oc_canal_tradicional_v2';
 let state = {
   orders: [], dmeMetas: {}, tab:'ordenes', dmeMes: hoyISO().slice(0,7),
   view:'lista', selectedId:null,
@@ -423,10 +337,11 @@ let state = {
   modal:null, modalErr:'', confirmDelete:false,
   cargando:true, syncError:'',
 };
-let pollTimer = null;
 
 function migrarOrdenes(){
   state.orders.forEach(o=>{
+    if(!o.fechas) o.fechas = emptyFechas();
+    if(!o.historial) o.historial = [];
     if(o.costoUnitario===undefined) o.costoUnitario = null;
     if(o.cantidad===undefined) o.cantidad = 1;
     if(o.tipoGasto===undefined) o.tipoGasto = 'producto';
@@ -434,720 +349,590 @@ function migrarOrdenes(){
   });
 }
 
-function cargarLocal(){
-  try{
-    const raw = localStorage.getItem(STORE_KEY);
-    if(raw){
-      const parsed = JSON.parse(raw);
-      if(Array.isArray(parsed)){ state.orders = parsed; state.dmeMetas = {}; }
-      else{ state.orders = parsed.orders || seedData(); state.dmeMetas = parsed.dmeMetas || {}; }
-    } else {
-      state.orders = seedData();
-      state.dmeMetas = { [hoyISO().slice(0,7)]: {productos:8000, servicios:2000} };
-    }
-  }catch(e){ state.orders = seedData(); state.dmeMetas = {}; }
-  migrarOrdenes();
-}
-
+// Función principal para leer de Supabase
 async function cargar(){
   state.cargando = true;
-  if(API_URL){
-    try{
-      const res = await fetch(API_URL);
-      const data = await res.json();
-      if(!data.ok) throw new Error(data.error||'Respuesta inválida del servidor');
-      state.orders = data.ordenes || [];
-      state.dmeMetas = data.dmeMetas || {};
-      state.syncError = '';
-      migrarOrdenes();
-      state.cargando = false;
-      render();
-      iniciarPolling();
-      return;
-    }catch(e){
-      state.syncError = 'No se pudo conectar con Google Sheets. Mostrando la última copia guardada en este navegador.';
-    }
-  }
-  cargarLocal();
-  state.cargando = false;
-  render();
-}
-
-async function guardar(){
-  try{ localStorage.setItem(STORE_KEY, JSON.stringify({ orders: state.orders, dmeMetas: state.dmeMetas })); }
-  catch(e){ /* almacenamiento local lleno o no disponible: seguimos igual, ya se intenta sincronizar arriba */ }
-  if(!API_URL) return;
-  try{
-    const res = await fetch(API_URL, { method:'POST', body: JSON.stringify({ accion:'guardar_todas', ordenes: state.orders, dmeMetas: state.dmeMetas }) });
-    const data = await res.json();
-    state.syncError = data.ok ? '' : 'No se pudo guardar en Google Sheets: ' + (data.error||'error desconocido');
-  }catch(e){
-    state.syncError = 'No se pudo guardar en Google Sheets (sin conexión). Tus cambios quedaron respaldados en este navegador.';
-  }
-  render();
-}
-
-// Refresca en segundo plano cada INTERVALO_POLLING_MS para ver cambios de otras
-// personas sin recargar. No interrumpe si hay un formulario o modal abierto,
-// para no perder algo que estés escribiendo.
-function iniciarPolling(){
-  if(!API_URL) return;
-  if(pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(async () => {
-    if(state.view === 'detalle' || state.modal) return;
-    try{
-      const res = await fetch(API_URL);
-      const data = await res.json();
-      if(data.ok){
-        state.orders = data.ordenes || [];
-        state.dmeMetas = data.dmeMetas || {};
-        state.syncError = '';
-        migrarOrdenes();
-        render();
-      }
-    }catch(e){ /* fallo silencioso: no interrumpir con errores de refresco automático */ }
-  }, INTERVALO_POLLING_MS);
-}
-
-// ---------------------------------------------------------------------------
-// Acciones
-// ---------------------------------------------------------------------------
-const App = {
-  nuevaOrden(){ state.modal='nueva'; state.modalErr=''; render(); },
-  cerrarModal(){ state.modal=null; render(); },
-  crearOrden(){
-    const producto = document.getElementById('f-producto').value.trim();
-    const tipoGasto = document.getElementById('f-tipo').value;
-    const mesInicio = document.getElementById('f-mes').value || hoyISO().slice(0,7);
-    const creadoEn = hoyISO();
-    if(!producto){ state.modalErr = 'Escribe el producto o servicio antes de continuar.'; render(); return; }
-    const id = 'OC-2026-' + String(state.orders.length+1).padStart(3,'0');
-    state.orders.unshift({ id, producto, proveedor: '', creadoEn, mesInicio,
-      numeroRequisicion:null, numeroOC:null, costoUnitario:null, cantidad:1, tipoGasto,
-      fechas: emptyFechas(), historial:[{fecha:creadoEn, mensaje:'Orden creada'}] });
-    guardar(); state.modal=null; state.selectedId=id; state.view='detalle'; render();
-  },
-  verOrden(id){ state.selectedId=id; state.view='detalle'; state.confirmDelete=false; render(); },
-  volver(){ state.view='lista'; state.selectedId=null; render(); },
-  actualizarFecha(id, campo, valor){
-    const o = state.orders.find(x=>x.id===id); if(!o) return;
-    if(campo === '__creadoEn'){ o.creadoEn = valor || hoyISO(); guardar(); render(); return; }
-    const anterior = o.fechas[campo];
-    o.fechas[campo] = valor || null;
-    if(valor && valor !== anterior){
-      const etiqueta = (STAGES.find(s=>s.dateField===campo)||{}).inputLabel || CAMPOS_EXTRA.find(c=>c.key===campo)?.label || campo;
-      o.historial.push({fecha: valor, mensaje: `${etiqueta.split(' — ')[0]}: ${fmt(valor)}`});
-    }
-    guardar(); render();
-  },
-  actualizarCampoTexto(id, campo, valor){
-    const o = state.orders.find(x=>x.id===id); if(!o) return;
-    o[campo] = valor; guardar(); render();
-  },
-  actualizarCampoNumero(id, campo, valor){
-    const o = state.orders.find(x=>x.id===id); if(!o) return;
-    o[campo] = valor==='' ? null : Number(valor);
-    guardar(); render();
-  },
-  setTab(v){ state.tab=v; render(); },
-  setDmeMes(v){ state.dmeMes=v; render(); },
-  actualizarMeta(mes, tipo, valor){
-    if(!state.dmeMetas[mes]) state.dmeMetas[mes] = {productos:0, servicios:0};
-    state.dmeMetas[mes][tipo] = valor==='' ? 0 : Number(valor);
-    guardar(); render();
-  },
-  toggleFiltroSem(v){ state.filtroSem = (state.filtroSem===v) ? 'todos' : v; render(); },
-  setFiltroEstado(v){ state.filtroEstado=v; render(); },
-  setFNombre(v){ state.fNombre=v; render(); },
-  setFProveedor(v){ state.fProveedor=v; render(); },
-  setFRequisicion(v){ state.fRequisicion=v; render(); },
-  setFOC(v){ state.fOC=v; render(); },
-  setFMes(v){ state.fMes=v; render(); },
-  limpiarFiltros(){ state.filtroSem='todos'; state.filtroEstado='todos'; state.fNombre=''; state.fProveedor='todos'; state.fRequisicion=''; state.fOC=''; state.fMes='todos'; render(); },
-  pedirEliminar(){ state.confirmDelete=true; render(); },
-  cancelarEliminar(){ state.confirmDelete=false; render(); },
-  eliminarOrden(id){
-    state.orders = state.orders.filter(o=>o.id!==id);
-    guardar(); state.view='lista'; state.selectedId=null; state.confirmDelete=false; render();
-  },
-
-  exportarExcel(){
-    if(typeof XLSX === 'undefined'){ alert('No se pudo cargar la librería de Excel (revisa tu conexión a internet e intenta de nuevo).'); return; }
-    const filas = [PLANTILLA_HEADERS];
-    state.orders.forEach(o=>{
-      const estado = getEstado(o);
-      const monto = montoOrden(o);
-      const eg = estadoGasto(o);
-      const mesTxt = o.mesInicio ? (MESES[parseInt(o.mesInicio.split('-')[1],10)-1]||'') : '';
-      filas.push([
-        mesTxt,
-        o.fechas.requisicionEmitida ? fmt(o.fechas.requisicionEmitida) : '',
-        SOLICITADO_POR,
-        '', '',
-        o.numeroRequisicion || '',
-        o.producto || '',
-        o.tipoGasto==='servicio' ? ELEMENTO_SERVICIO : ELEMENTO_PRODUCTO,
-        NOMBRE_ELEMENTO_PEP,
-        o.proveedor || '',
-        o.fechas.briefingPublicado ? 'Enviado' : '',
-        '',
-        o.fechas.briefingPublicado ? fmt(o.fechas.briefingPublicado) : '',
-        '',
-        o.fechas.comparativoRecibido ? 'Recibido' : '',
-        o.fechas.comparativoRecibido ? fmt(o.fechas.comparativoRecibido) : '',
-        '',
-        o.fechas.ocEmitida ? 'Recibido' : '',
-        o.numeroOC || '',
-        o.fechas.ocEmitida ? fmt(o.fechas.ocEmitida) : '',
-        '',
-        '',
-        o.costoUnitario!=null ? o.costoUnitario : '',
-        o.cantidad!=null ? o.cantidad : '',
-        monto>0 ? monto : '',
-        '',
-        estado.completado ? 'Completado' : STAGES[estado.index].label,
-        '',
-        eg==='real' ? monto : '',
-        eg==='comprometido' ? monto : '',
-        '', '', '',
-        o.fechas.muestraEstimada ? fmt(o.fechas.muestraEstimada) : '',
-        '',
-        '',
-        o.fechas.muestraRecibida ? fmt(o.fechas.muestraRecibida) : '',
-        o.fechas.aprobacion ? fmt(o.fechas.aprobacion) : '',
-        o.fechas.entregaReal ? fmt(o.fechas.entregaReal) : '',
-        '',
-      ]);
-    });
-    const ws = XLSX.utils.aoa_to_sheet(filas);
-    ws['!cols'] = PLANTILLA_HEADERS.map(()=>({wch:16}));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Envíos');
-    XLSX.writeFile(wb, `Ordenes_Canal_Tradicional_${hoyISO()}.xlsx`);
-  },
-
-  importarArchivo(inputEl){
-    const file = inputEl.files && inputEl.files[0];
-    if(!file) return;
-    if(typeof XLSX === 'undefined'){ alert('No se pudo cargar la librería de Excel (revisa tu conexión a internet e intenta de nuevo).'); inputEl.value=''; return; }
-    const reader = new FileReader();
-    reader.onload = function(e){
-      try{
-        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
-        let filasDatos = null, mapaColumnas = null;
-        for(const nombreHoja of wb.SheetNames){
-          const aoa = XLSX.utils.sheet_to_json(wb.Sheets[nombreHoja], {header:1, raw:true, defval:null});
-          for(let r=0; r<Math.min(aoa.length, 20); r++){
-            const fila = aoa[r];
-            if(!fila) continue;
-            if(fila.some(c=>normKey(c)==='descripcion requisicion')){
-              mapaColumnas = {};
-              fila.forEach((celda, idx)=>{ const k = normKey(celda); if(k && mapaColumnas[k]===undefined) mapaColumnas[k]=idx; });
-              filasDatos = aoa.slice(r+1);
-              break;
-            }
-          }
-          if(filasDatos) break;
-        }
-        if(!filasDatos){
-          alert('No se encontró una fila de encabezados reconocible (se busca la columna "Descripción Requisición") en el archivo.');
-          inputEl.value=''; return;
-        }
-        const col = (fila, key) => mapaColumnas[key]!==undefined ? fila[mapaColumnas[key]] : null;
-        const toISO = (v) => (v instanceof Date && !isNaN(v) && v.getFullYear() >= 2000) ? v.toISOString().slice(0,10) : null;
-
-        let importadas = 0;
-        filasDatos.forEach(fila=>{
-          if(!fila || fila.every(c=>c===null||c==='')) return;
-          const producto = col(fila,'descripcion requisicion');
-          if(!producto) return;
-
-          const elementoCell = String(col(fila,'elemento')||'');
-          const tipoGasto = elementoCell.includes('260013') ? 'servicio' : 'producto';
-
-          const fechas = emptyFechas();
-          fechas.briefingPublicado = toISO(col(fila,'fecha brief'));
-          fechas.comparativoRecibido = toISO(col(fila,'fecha de recepcion comparativo'));
-          fechas.requisicionEmitida = toISO(col(fila,'fecha requisicion'));
-          fechas.ocEmitida = toISO(col(fila,'fecha oc'));
-          fechas.muestraEstimada = toISO(col(fila,'fecha prototipo'));
-          fechas.muestraRecibida = toISO(col(fila,'fecha de entrega de muestra'));
-          fechas.aprobacion = toISO(col(fila,'aprobacion de muestra'));
-          fechas.entregaReal = toISO(col(fila,'fecha de entrega'));
-          backfillFechasImport(fechas);
-
-          const numeroRequisicion = col(fila,'requisicion') ? String(col(fila,'requisicion')) : null;
-          const numeroOC = col(fila,'n oc') ? String(col(fila,'n oc')) : null;
-          const costoUnitarioVal = Number(col(fila,'costo unitario'));
-          const costoUnitario = costoUnitarioVal>0 ? costoUnitarioVal : null;
-          const cantidadVal = Number(col(fila,'cantidad'));
-          const cantidad = cantidadVal>0 ? cantidadVal : 1;
-          const proveedor = col(fila,'proveedor') ? String(col(fila,'proveedor')) : '';
-
-          const creadoEn = fechas.briefingPublicado || fechas.requisicionEmitida || hoyISO();
-          const mesInicio = creadoEn.slice(0,7);
-          const id = 'OC-2026-' + String(state.orders.length+1).padStart(3,'0');
-
-          const historial = [{fecha:creadoEn, mensaje:'Orden importada desde Excel'}];
-          STAGES.forEach(s=>{ if(fechas[s.dateField]) historial.push({fecha:fechas[s.dateField], mensaje:`${s.inputLabel}: ${fmt(fechas[s.dateField])} (importado)`}); });
-
-          state.orders.push({ id, producto:String(producto), proveedor, creadoEn, mesInicio,
-            numeroRequisicion, numeroOC, costoUnitario, cantidad, tipoGasto, fechas, historial });
-          importadas++;
-        });
-
-        guardar();
-        state.view='lista'; state.tab='ordenes'; render();
-        alert(importadas>0 ? `Se importaron ${importadas} orden(es) desde el Excel.` : 'No se encontraron filas válidas para importar (revisa que el archivo tenga la columna "Descripción Requisición" con datos debajo).');
-      }catch(err){
-        alert('No se pudo leer el archivo: ' + err.message);
-      }
-      inputEl.value='';
-    };
-    reader.readAsArrayBuffer(file);
-  },
-};
-
-// ---------------------------------------------------------------------------
-// Render
-// ---------------------------------------------------------------------------
-function badge(sem, texto){
-  const ic = sem==='rojo' ? ICONS.alertTriangle : sem==='amarillo' ? ICONS.clock : ICONS.check;
-  return `<span class="badge ${sem}">${ic}${esc(texto)}</span>`;
-}
-
-function renderTabBar(){
-  const alerta = alertaDMEInfo();
-  return `<div class="tabbar">
-    <button class="tab-btn ${state.tab==='ordenes'?'active':''}" onclick="App.setTab('ordenes')">Órdenes de compra</button>
-    <button class="tab-btn ${state.tab==='dme'?'active':''}" onclick="App.setTab('dme')">Control de DME${alerta?'<span class="tab-dot"></span>':''}</button>
-  </div>`;
-}
-
-function renderStepper(o){
-  const estado = getEstado(o);
-  return `<div class="stepper">${STAGES.map((s,i)=>{
-    const fechaVal = o.fechas[s.dateField];
-    const done = estado.completado ? true : i < estado.index;
-    const current = !estado.completado && i === estado.index;
-    const semActual = current ? computeStatus(o).semaforo : null;
-    let color = '#D8D2CC';
-    if(done) color = 'var(--green)';
-    else if(current) color = semActual==='rojo' ? 'var(--danger)' : semActual==='amarillo' ? '#D9970C' : 'var(--green)';
-    const circleBg = done ? 'var(--green-bg)' : current ? '#FFF8EC' : '#FAFAF9';
-    const connectorColor = (i < estado.index || estado.completado) ? 'var(--green)' : 'var(--border)';
-    const connector = i < STAGES.length-1 ? `<div class="connector" style="background:${connectorColor}"></div>` : '';
-    return `<div style="display:flex;align-items:flex-start;">
-      <div class="step-col">
-        <div class="step-circle" style="border-color:${color};color:${color};background:${circleBg};">${done?ICONS.check:(i+1)}</div>
-        <div class="step-label" style="font-weight:${current?700:500};color:${current?'var(--text)':'var(--text-muted)'};">${esc(s.label)}</div>
-        <div class="step-date">${fmt(fechaVal)}</div>
-      </div>${connector}</div>`;
-  }).join('')}</div>`;
-}
-
-function getFiltradas(){
-  const withStatus = state.orders.map(o=>({o, st:computeStatus(o)}));
-  let filtradas = withStatus.filter(({o,st})=>{
-    const estado = getEstado(o);
-    if(state.filtroSem==='todos') return true;
-    if(state.filtroSem==='completadas') return estado.completado;
-    return !estado.completado && st.semaforo===state.filtroSem;
-  }).filter(({o})=> state.filtroEstado==='todos' || STAGES[getEstado(o).index].key===state.filtroEstado || (state.filtroEstado==='cierre' && getEstado(o).completado))
-    .filter(({o})=>{
-      const q = state.fNombre.trim().toLowerCase();
-      return !q || o.producto.toLowerCase().includes(q);
-    })
-    .filter(({o})=> state.fProveedor==='todos' || o.proveedor === state.fProveedor)
-    .filter(({o})=>{
-      const q = state.fRequisicion.trim().toLowerCase();
-      return !q || (o.numeroRequisicion||'').toLowerCase().includes(q);
-    })
-    .filter(({o})=>{
-      const q = state.fOC.trim().toLowerCase();
-      return !q || (o.numeroOC||'').toLowerCase().includes(q);
-    })
-    .filter(({o})=> state.fMes==='todos' || (o.mesInicio||'')===state.fMes);
-
-  const rank = {rojo:0, amarillo:1, verde:2};
-  filtradas.sort((a,b)=>{
-    const ea=getEstado(a.o), eb=getEstado(b.o);
-    if(ea.completado!==eb.completado) return ea.completado?1:-1;
-    return (rank[a.st.semaforo]-rank[b.st.semaforo]) || (b.st.dias-a.st.dias);
-  });
-  return {withStatus, filtradas};
-}
-
-function renderDashboard(){
-  const {withStatus, filtradas} = getFiltradas();
-  const counts = {verde:0, amarillo:0, rojo:0, completadas:0};
-  withStatus.forEach(({o,st})=>{ const estado=getEstado(o); if(estado.completado) counts.completadas++; else counts[st.semaforo]++; });
-  const alertas = withStatus.filter(({o,st})=> !getEstado(o).completado && st.semaforo!=='verde')
-    .sort((a,b)=> (b.st.semaforo==='rojo'?1:0) - (a.st.semaforo==='rojo'?1:0) || b.st.dias-a.st.dias);
-
-  const cardsDef = [
-    {k:'verde', l:'Al día', v:counts.verde, ic:ICONS.check, iconBg:'var(--green-bg)', iconFg:'var(--green)'},
-    {k:'amarillo', l:'Requieren atención', v:counts.amarillo, ic:ICONS.clock, iconBg:'var(--amber-bg)', iconFg:'var(--amber)'},
-    {k:'rojo', l:'Vencidas / fuera de plazo', v:counts.rojo, ic:ICONS.alertTriangle, iconBg:'var(--danger-bg)', iconFg:'var(--danger)'},
-    {k:'completadas', l:'Completadas', v:counts.completadas, ic:ICONS.box, iconBg:'#EFEAE4', iconFg:'#8A8178'},
-  ];
-  const cardsHtml = cardsDef.map(c=>`<button class="count-card ${state.filtroSem===c.k?'active':''}" onclick="App.toggleFiltroSem('${c.k}')">
-      <div class="count-icon" style="background:${c.iconBg};color:${c.iconFg};">${c.ic}</div>
-      <div><div class="lbl">${esc(c.l)}</div><div class="val">${c.v}</div></div>
-    </button>`).join('');
-
-  const alertsHtml = alertas.length ? `<div class="alerts-card">
-      <div class="alerts-head">${ICONS.bell}<span class="t">Centro de alertas</span><span class="n">${alertas.length} orden(es)</span></div>
-      <div class="alerts-list">${alertas.map(({o,st})=>{
-        const ic = st.semaforo==='rojo' ? ICONS.alertTriangle : ICONS.clock;
-        const iconBg = st.semaforo==='rojo' ? 'var(--danger-bg)' : 'var(--amber-bg)';
-        const iconFg = st.semaforo==='rojo' ? 'var(--danger)' : 'var(--amber)';
-        return `<div class="alert-item ${st.semaforo}" onclick="App.verOrden('${o.id}')">
-          <div class="alert-icon" style="background:${iconBg};color:${iconFg};">${ic}</div>
-          <div class="alert-body">
-            <div class="alert-title">${esc(o.producto)} <span class="faint">· ${esc(o.id)}</span></div>
-            <div class="alert-sub">${esc(STAGES[st.index].label)} · ${esc(STAGES[st.index].responsable)}</div>
-          </div>
-          <div>
-            <div class="alert-time ${st.semaforo}">${esc(st.mensaje)}</div>
-            ${st.escalado ? `<div class="escal-tag">Escalar a Gerencia</div>` : ''}
-          </div>
-        </div>`;
-      }).join('')}</div>
-    </div>` : '';
-
-  const proveedores = [...new Set(state.orders.map(o=>o.proveedor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const opcionesEstado = ['<option value="todos">Todas las etapas</option>']
-    .concat(STAGES.map(s=>`<option value="${s.key}" ${state.filtroEstado===s.key?'selected':''}>${esc(s.label)}</option>`)).join('');
-  const opcionesProveedor = ['<option value="todos">Todos los proveedores</option>']
-    .concat(proveedores.map(p=>`<option value="${esc(p)}" ${state.fProveedor===p?'selected':''}>${esc(p)}</option>`)).join('');
-  const mesesDisponibles = [...new Set(state.orders.map(o=>o.mesInicio||'').filter(Boolean))].sort().reverse();
-  const opcionesMes = ['<option value="todos">Todos los meses</option>']
-    .concat(mesesDisponibles.map(m=>`<option value="${m}" ${state.fMes===m?'selected':''}>${esc(mesLabel(m))}</option>`)).join('');
-
-  const filtrosActivos = state.filtroSem!=='todos' || state.filtroEstado!=='todos' || state.fNombre || state.fProveedor!=='todos' || state.fRequisicion || state.fOC || state.fMes!=='todos';
-
-  const rowsHtml = filtradas.length ? filtradas.map(({o,st})=>{
-    const estado = getEstado(o);
-    const etapaLabel = estado.completado ? 'Completada' : STAGES[estado.index].label;
-    const resp = estado.completado ? '' : STAGES[estado.index].responsable;
-    const sem = estado.completado ? 'verde' : st.semaforo;
-    const proveedorTxt = o.proveedor ? esc(o.proveedor) : `<span class="faint" style="font-style:italic;">Proveedor pendiente</span>`;
-    const monto = montoOrden(o);
-    const refs = [o.numeroRequisicion?`Req ${esc(o.numeroRequisicion)}`:null, o.numeroOC?`OC ${esc(o.numeroOC)}`:null, monto>0?fmtMoney(monto):null].filter(Boolean).join(' · ');
-    return `<div class="order-card" onclick="App.verOrden('${o.id}')">
-      <div class="order-status-bar ${sem}"></div>
-      <div class="order-main">
-        <div class="order-title">${esc(o.producto)}</div>
-        <div class="order-sub">${esc(o.id)} · ${proveedorTxt}${refs?' · '+refs:''}</div>
-      </div>
-      <div class="order-stage">
-        <div class="st-label">${esc(etapaLabel)}</div>
-        <div class="st-resp">${esc(resp)}</div>
-      </div>
-      <div class="order-time" style="color:${estado.completado ? 'var(--green)' : (sem==='rojo'?'var(--danger)':sem==='amarillo'?'var(--amber)':'var(--green)')};">${estado.completado?'Completada':esc(st.mensaje)}</div>
-      <div class="chev">${ICONS.chev}</div>
-    </div>`;
-  }).join('') : `<div class="empty-msg">No hay órdenes que coincidan con los filtros seleccionados.${filtrosActivos?` <button class="btn-link" onclick="App.limpiarFiltros()">Limpiar filtros</button>`:''}</div>`;
-
-  return `
-    <div class="row" style="margin-bottom:20px;">
-      <div>
-        <h2 style="font-size:20px;">Seguimiento de compras</h2>
-        <div class="muted" style="font-size:12.5px;margin-top:3px;">${state.orders.length} orden(es) registradas · ${counts.completadas} completada(s)</div>
-      </div>
-      <button class="btn btn-primary" onclick="App.nuevaOrden()">+ Nueva orden</button>
-    </div>
-    <div class="row" style="margin-bottom:16px;gap:8px;">
-      <input type="file" id="import-file" accept=".xlsx,.xls" style="display:none;" onchange="App.importarArchivo(this)">
-      <button class="btn btn-outline" onclick="document.getElementById('import-file').click()">Importar desde Excel</button>
-      <button class="btn btn-outline" onclick="App.exportarExcel()">Exportar a Excel</button>
-    </div>
-    <div class="counts">${cardsHtml}</div>
-    ${alertsHtml}
-    <div class="card">
-      <div class="filters-grid">
-        <div class="field-box"><label class="field-label">Nombre</label>
-          <input type="text" id="filtro-nombre" placeholder="Buscar por producto" value="${esc(state.fNombre)}" oninput="App.setFNombre(this.value)"></div>
-        <div class="field-box"><label class="field-label">Proveedor</label>
-          <select onchange="App.setFProveedor(this.value)">${opcionesProveedor}</select></div>
-        <div class="field-box"><label class="field-label">N&deg; de requisición</label>
-          <input type="text" id="filtro-req" inputmode="numeric" maxlength="6" placeholder="Ej. 7861" value="${esc(state.fRequisicion)}" oninput="App.setFRequisicion(this.value)"></div>
-        <div class="field-box"><label class="field-label">N&deg; de OC</label>
-          <input type="text" id="filtro-oc" inputmode="numeric" maxlength="10" placeholder="Ej. 5500084844" value="${esc(state.fOC)}" oninput="App.setFOC(this.value)"></div>
-        <div class="field-box"><label class="field-label">Etapa</label>
-          <select onchange="App.setFiltroEstado(this.value)">${opcionesEstado}</select></div>
-        <div class="field-box"><label class="field-label">Mes de inicio</label>
-          <select onchange="App.setFMes(this.value)">${opcionesMes}</select></div>
-      </div>
-      ${filtrosActivos ? `<div style="margin-top:10px;"><button class="btn-link" onclick="App.limpiarFiltros()">Limpiar todos los filtros</button></div>` : ''}
-    </div>
-    <div class="order-list">${rowsHtml}</div>
-    <div class="footer-note">Todos los plazos se calculan en días hábiles (lunes a viernes). Los datos se guardan en este navegador.</div>
-  `;
-}
-
-function renderDetalle(o){
-  const estado = getEstado(o);
-  const st = computeStatus(o);
-  const sem = estado.completado ? 'verde' : st.semaforo;
-  const msg = estado.completado ? 'Completada' : st.mensaje;
-
-  const camposObligatorios = STAGES.map(s=>`
-    <div class="field-box">
-      <label class="field-label">${esc(s.inputLabel)} <span class="opt-tag">(${esc(s.responsable)})</span></label>
-      <input type="date" value="${o.fechas[s.dateField]||''}" onchange="App.actualizarFecha('${o.id}','${s.dateField}',this.value)">
-    </div>`).join('');
-  const camposExtra = CAMPOS_EXTRA.map(c=>`
-    <div class="field-box">
-      <label class="field-label">${esc(c.label)}</label>
-      <input type="date" value="${o.fechas[c.key]||''}" onchange="App.actualizarFecha('${o.id}','${c.key}',this.value)">
-    </div>`).join('');
-
-  const historialHtml = o.historial.length ? [...o.historial].reverse().map(h=>`
-      <div class="hist-item"><span class="hist-date">${fmt(h.fecha)}</span><span>${esc(h.mensaje)}</span></div>`).join('')
-    : `<div class="muted" style="font-size:12.5px;">Sin eventos registrados todavía.</div>`;
-
-  const deleteHtml = !state.confirmDelete
-    ? `<button class="btn btn-danger" onclick="App.pedirEliminar()">Eliminar orden</button>`
-    : `<span style="font-size:12.5px;color:var(--danger);">¿Confirmar eliminación?
-        <button class="btn-link" style="color:var(--danger);font-weight:700;text-decoration:underline;" onclick="App.eliminarOrden('${o.id}')">Sí, eliminar</button> ·
-        <button class="btn-link" onclick="App.cancelarEliminar()">Cancelar</button></span>`;
-
-  return `
-    <button class="btn-link" onclick="App.volver()">${ICONS.chev.replace('m9 18 6-6-6-6','m15 18-6-6 6-6')} Volver</button>
-    <div class="row" style="margin-top:14px;margin-bottom:4px;">
-      <div>
-        <div class="order-sub" style="font-size:12px;">${esc(o.id)}</div>
-        <h3 style="font-size:20px;margin:3px 0 4px;">${esc(o.producto)}</h3>
-        <div class="muted" style="font-size:13px;">${o.proveedor ? esc(o.proveedor) : `<span style="font-style:italic;">Proveedor pendiente — se define al recibir la OC</span>`}</div>
-      </div>
-      ${badge(sem, msg)}
-    </div>
-    <div class="card" style="margin-top:16px;">${renderStepper(o)}</div>
-
-    <div class="card">
-      <h4 style="font-size:13px;margin-bottom:4px;">Datos generales</h4>
-      <div class="fields-grid" style="margin-top:10px;">
-        <div class="field-box">
-          <label class="field-label">Producto o servicio</label>
-          <input type="text" value="${esc(o.producto)}" onchange="App.actualizarCampoTexto('${o.id}','producto',this.value)">
-        </div>
-        <div class="field-box">
-          <label class="field-label">Proveedor <span class="opt-tag">(se define al recibir la OC)</span></label>
-          <input type="text" placeholder="Se completa cuando llegue la orden de compra" value="${esc(o.proveedor)}" onchange="App.actualizarCampoTexto('${o.id}','proveedor',this.value)">
-        </div>
-        <div class="field-box">
-          <label class="field-label">Fecha de creación <span class="opt-tag">(para el cálculo de plazos)</span></label>
-          <input type="date" value="${o.creadoEn}" onchange="App.actualizarFecha('${o.id}','__creadoEn',this.value)">
-        </div>
-        <div class="field-box">
-          <label class="field-label">Mes de inicio <span class="opt-tag">(para filtros y DME — editable aparte)</span></label>
-          <input type="month" value="${o.mesInicio}" onchange="App.actualizarCampoTexto('${o.id}','mesInicio',this.value)">
-        </div>
-        <div class="field-box">
-          <label class="field-label">N&uacute;mero de requisición <span class="opt-tag">(opcional, 5 dígitos)</span></label>
-          <input type="text" inputmode="numeric" maxlength="6" placeholder="Ej. 7861" value="${esc(o.numeroRequisicion||'')}" onchange="App.actualizarCampoTexto('${o.id}','numeroRequisicion',this.value)">
-        </div>
-        <div class="field-box">
-          <label class="field-label">N&uacute;mero de OC <span class="opt-tag">(opcional, 8 dígitos)</span></label>
-          <input type="text" inputmode="numeric" maxlength="10" placeholder="Ej. 5500084844" value="${esc(o.numeroOC||'')}" onchange="App.actualizarCampoTexto('${o.id}','numeroOC',this.value)">
-        </div>
-        <div class="field-box">
-          <label class="field-label">Tipo de gasto</label>
-          <select onchange="App.actualizarCampoTexto('${o.id}','tipoGasto',this.value)">
-            <option value="producto" ${o.tipoGasto==='producto'?'selected':''}>Producto</option>
-            <option value="servicio" ${o.tipoGasto==='servicio'?'selected':''}>Servicio (Flete)</option>
-          </select>
-        </div>
-        <div class="field-box">
-          <label class="field-label">Costo unitario</label>
-          <input type="number" min="0" step="0.01" placeholder="0.00" value="${o.costoUnitario!=null?o.costoUnitario:''}" onchange="App.actualizarCampoNumero('${o.id}','costoUnitario',this.value)">
-        </div>
-        <div class="field-box">
-          <label class="field-label">Cantidad</label>
-          <input type="number" min="0" step="1" placeholder="1" value="${o.cantidad!=null?o.cantidad:''}" onchange="App.actualizarCampoNumero('${o.id}','cantidad',this.value)">
-        </div>
-      </div>
-      <div class="muted" style="font-size:12.5px;margin-top:12px;">Monto total: <strong style="color:var(--text);">${fmtMoney(montoOrden(o))}</strong> — ${
-        estadoGasto(o)==='real' ? '<span style="color:var(--green);font-weight:600;">cuenta como gasto real</span>'
-        : estadoGasto(o)==='comprometido' ? '<span style="color:var(--amber);font-weight:600;">cuenta como gasto comprometido</span>'
-        : 'aún no cuenta para el DME (falta emitir la requisición)'
-      }</div>
-    </div>
-
-    <div class="card">
-      <h4 style="font-size:13px;margin-bottom:2px;">Fechas del proceso</h4>
-      <div class="muted" style="font-size:12px;margin-bottom:12px;">Registra la fecha real de cada hito en cuanto ocurra — la etapa activa y las alertas se recalculan solas.</div>
-      <div class="fields-grid">${camposObligatorios}${camposExtra}</div>
-    </div>
-
-    <div class="card">
-      <h4 style="font-size:13px;margin-bottom:10px;">Historial</h4>
-      ${historialHtml}
-    </div>
-
-    <div style="text-align:right;margin-top:6px;">${deleteHtml}</div>
-  `;
-}
-
-function renderDME(){
-  const mesActualReal = hoyISO().slice(0,7);
-  const mesesDisponibles = new Set(state.orders.map(o=>o.mesInicio||'').filter(Boolean));
-  mesesDisponibles.add(mesActualReal);
-  Object.keys(state.dmeMetas).forEach(m=>mesesDisponibles.add(m));
-  const listaMeses = [...mesesDisponibles].sort().reverse();
-  if(!listaMeses.includes(state.dmeMes)) state.dmeMes = mesActualReal;
-
-  const opciones = listaMeses.map(m=>`<option value="${m}" ${state.dmeMes===m?'selected':''}>${esc(mesLabel(m))}</option>`).join('');
-
-  const meta = state.dmeMetas[state.dmeMes] || {productos:0, servicios:0};
-  const r = resumenDME(state.dmeMes);
-  const metaTotal = (Number(meta.productos)||0) + (Number(meta.servicios)||0);
-  const ejecTotal = r.compTotal + r.realTotal;
-  const restante = metaTotal - ejecTotal;
-
-  const alerta = alertaDMEInfo();
-  const alertaHtml = (alerta && alerta.mes === state.dmeMes) ? `<div class="dme-alert">
-      ${ICONS.bell}
-      <div>
-        <div style="font-weight:700;font-size:13.5px;">Ya pasó el penúltimo miércoles del mes</div>
-        <div style="font-size:12.5px;margin-top:2px;">Te faltan <strong>${fmtMoney(alerta.restante)}</strong> por ejecutar para llegar al 100% del DME de ${esc(mesLabel(alerta.mes))}.</div>
-      </div>
-    </div>` : '';
-
-  function barra(label, ejecutado, metaVal, color){
-    const p = metaVal>0 ? Math.min(100, (ejecutado/metaVal)*100) : 0;
-    return `<div style="margin-bottom:14px;">
-      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px;">
-        <span class="muted" style="font-weight:600;">${esc(label)}</span>
-        <span><strong>${fmtMoney(ejecutado)}</strong> <span class="faint">/ ${fmtMoney(metaVal)}</span></span>
-      </div>
-      <div class="progress-track"><div class="progress-fill" style="width:${p}%;background:${color};"></div></div>
-    </div>`;
-  }
-
-  return `
-    ${alertaHtml}
-    <div class="row" style="margin-bottom:18px;align-items:flex-end;">
-      <div>
-        <h2 style="font-size:20px;">Control de DME</h2>
-        <div class="muted" style="font-size:12.5px;margin-top:3px;">Desembolso mensual estimado — gasto comprometido y real por mes</div>
-      </div>
-      <div class="field-box" style="min-width:200px;">
-        <label class="field-label">Mes</label>
-        <select onchange="App.setDmeMes(this.value)">${opciones}</select>
-      </div>
-    </div>
-
-    <div class="card">${burbujaDME(ejecTotal, metaTotal)}</div>
-
-    <div class="card">
-      <h4 style="font-size:13px;margin-bottom:2px;">Meta de DME para ${esc(mesLabel(state.dmeMes))}</h4>
-      <div class="muted" style="font-size:12px;margin-bottom:12px;">Por defecto queda en cero — regístrala tú cada mes.</div>
-      <div class="fields-grid">
-        <div class="field-box">
-          <label class="field-label">Productos</label>
-          <input type="number" min="0" step="0.01" placeholder="0.00" value="${meta.productos||''}" onchange="App.actualizarMeta('${state.dmeMes}','productos',this.value)">
-        </div>
-        <div class="field-box">
-          <label class="field-label">Servicios (Flete)</label>
-          <input type="number" min="0" step="0.01" placeholder="0.00" value="${meta.servicios||''}" onchange="App.actualizarMeta('${state.dmeMes}','servicios',this.value)">
-        </div>
-      </div>
-      <div class="muted" style="font-size:12px;margin-top:10px;">Meta total del mes: <strong style="color:var(--text);">${fmtMoney(metaTotal)}</strong></div>
-    </div>
-
-    <div class="card">
-      <h4 style="font-size:13px;margin-bottom:14px;">Ejecución del mes</h4>
-      ${barra('Total (comprometido + real)', ejecTotal, metaTotal, 'var(--red)')}
-      ${barra('Productos', r.compProd+r.realProd, Number(meta.productos)||0, '#8A8178')}
-      ${barra('Servicios (Flete)', r.compServ+r.realServ, Number(meta.servicios)||0, '#8A8178')}
-      <div class="muted" style="font-size:12.5px;margin-top:4px;">${restante>0 ? `Falta <strong style="color:var(--text);">${fmtMoney(restante)}</strong> por ejecutar para llegar al 100%.` : `Meta alcanzada${restante<0?` (${fmtMoney(-restante)} por encima)`:''}.`}</div>
-    </div>
-
-    <div class="row" style="gap:16px;align-items:stretch;">
-      <div class="card" style="flex:1;min-width:260px;">
-        <h4 style="font-size:13px;margin-bottom:4px;color:var(--amber);">Gasto comprometido</h4>
-        <div class="muted" style="font-size:12px;">Requisición emitida, pendiente de entrega completa</div>
-        <div style="margin-top:12px;font-size:13px;">
-          <div style="display:flex;justify-content:space-between;"><span>Productos</span><strong>${fmtMoney(r.compProd)}</strong></div>
-          <div style="display:flex;justify-content:space-between;margin-top:6px;"><span>Servicios (Flete)</span><strong>${fmtMoney(r.compServ)}</strong></div>
-          <div style="display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft);"><span>Total</span><strong>${fmtMoney(r.compTotal)}</strong></div>
-        </div>
-      </div>
-      <div class="card" style="flex:1;min-width:260px;">
-        <h4 style="font-size:13px;margin-bottom:4px;color:var(--green);">Gasto real</h4>
-        <div class="muted" style="font-size:12px;">Entrega completa confirmada por el proveedor</div>
-        <div style="margin-top:12px;font-size:13px;">
-          <div style="display:flex;justify-content:space-between;"><span>Productos</span><strong>${fmtMoney(r.realProd)}</strong></div>
-          <div style="display:flex;justify-content:space-between;margin-top:6px;"><span>Servicios (Flete)</span><strong>${fmtMoney(r.realServ)}</strong></div>
-          <div style="display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft);"><span>Total</span><strong>${fmtMoney(r.realTotal)}</strong></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="footer-note">El gasto pasa de comprometido a real automáticamente al registrar la fecha de "Entrega completa" en la orden — nunca se cuentan los dos a la vez. El mes de cada orden es su "mes de inicio" (fecha de creación). La alerta de ejecución solo aparece dentro de esta pantalla a partir del penúltimo miércoles del mes actual; no envía notificaciones fuera del navegador.</div>
-  `;
-}
-
-function renderModal(){
-  if(state.modal !== 'nueva') return '';
-  return `<div class="modal-overlay" onclick="if(event.target===this) App.cerrarModal()">
-    <div class="modal">
-      <h3>Nueva orden de compra</h3>
-      <div class="field-box" style="margin-bottom:10px;"><label class="field-label">Producto o servicio</label>
-        <input type="text" id="f-producto" placeholder="Ej. Sombrillas publicitarias" autofocus></div>
-      <div class="field-box" style="margin-bottom:10px;"><label class="field-label">Tipo de gasto</label>
-        <select id="f-tipo">
-          <option value="producto" selected>Producto</option>
-          <option value="servicio">Servicio (Flete)</option>
-        </select></div>
-      <div class="field-box" style="margin-bottom:4px;"><label class="field-label">Mes de inicio <span class="opt-tag">(para filtros y DME)</span></label>
-        <input type="month" id="f-mes" value="${hoyISO().slice(0,7)}"></div>
-      ${state.modalErr ? `<div class="err">${esc(state.modalErr)}</div>` : ''}
-      <div class="row" style="margin-top:16px;justify-content:flex-end;">
-        <button class="btn btn-outline" onclick="App.cerrarModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="App.crearOrden()">Crear orden</button>
-      </div>
-    </div>
-  </div>`;
-}
-
-function render(){
-  const root = document.getElementById('app');
-  if(state.cargando){
-    root.innerHTML = '<div class="empty-msg" style="padding:60px 0;">Cargando órdenes…</div>';
+  if(!supabaseClient){
+    state.syncError = 'Por favor configura SUPABASE_URL y SUPABASE_KEY en el código.';
+    state.cargando = false;
+    render();
     return;
   }
-  const activo = document.activeElement;
-  const activoId = activo && activo.id ? activo.id : null;
-  const selStart = activo && typeof activo.selectionStart === 'number' ? activo.selectionStart : null;
-  const selEnd = activo && typeof activo.selectionEnd === 'number' ? activo.selectionEnd : null;
+  
+  try {
+    // 1. Obtener órdenes de la tabla ordenes_compra
+    const { data: ordenesData, error: errOrdenes } = await supabaseClient
+      .from('ordenes_compra')
+      .select('*');
+    if (errOrdenes) throw errOrdenes;
 
-  let html;
-  if(state.tab === 'dme'){
-    html = renderDME();
-  } else if(state.view==='detalle' && state.selectedId){
-    const o = state.orders.find(x=>x.id===state.selectedId);
-    html = o ? renderDetalle(o) : (state.view='lista', renderDashboard());
-  } else {
-    html = renderDashboard();
-  }
-  const syncHtml = state.syncError ? `<div class="footer-note" style="color:var(--danger);">${esc(state.syncError)}</div>` : '';
-  root.innerHTML = renderTabBar() + html + syncHtml + renderModal();
+    // 2. Obtener metas de la tabla dme_metas
+    const { data: metasData, error: errMetas } = await supabaseClient
+      .from('dme_metas')
+      .select('*');
+    if (errMetas) throw errMetas;
 
-  if(activoId){
-    const el = document.getElementById(activoId);
-    if(el){
-      el.focus();
-      if(selStart !== null && el.setSelectionRange){ try{ el.setSelectionRange(selStart, selEnd); }catch(e){} }
+    state.orders = ordenesData || [];
+    
+    // Convertir array de metas a un mapa { [mes]: {productos, servicios} }
+    const metasMap = {};
+    if (metasData) {
+      metasData.forEach(m => {
+        metasMap[m.mes] = { productos: m.productos, servicios: m.servicios };
+      });
     }
+    state.dmeMetas = metasMap;
+    state.syncError = '';
+    migrarOrdenes();
+  } catch(e) {
+    console.error('Error al cargar datos desde Supabase:', e);
+    state.syncError = 'Error de sincronización con Supabase: ' + e.message;
+  } finally {
+    state.cargando = false;
+    render();
   }
 }
 
+// Función para guardar (upsert) datos hacia Supabase
+async function guardar(ordenParaGuardar = null, metaParaGuardar = null){
+  if(!supabaseClient) return;
+
+  try {
+    if(ordenParaGuardar) {
+      const { error } = await supabaseClient
+        .from('ordenes_compra')
+        .upsert(ordenParaGuardar);
+      if(error) throw error;
+    }
+    
+    if(metaParaGuardar) {
+      const { mes, ...metas } = metaParaGuardar;
+      const { error } = await supabaseClient
+        .from('dme_metas')
+        .upsert({ mes, productos: metas.productos, servicios: metas.servicios });
+      if(error) throw error;
+    }
+  } catch(e) {
+    console.error('Error al guardar en Supabase:', e);
+    state.syncError = 'Error al guardar los cambios: ' + e.message;
+    render();
+  }
+}
+
+// Eliminar una orden de la base de datos
+async function eliminarOrden(id) {
+  if(!supabaseClient) return;
+  try {
+    const { error } = await supabaseClient
+      .from('ordenes_compra')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  } catch(e) {
+    console.error('Error al borrar en Supabase:', e);
+  }
+}
+
+// Suscripción Realtime activa de Supabase
+function iniciarSuscripcionRealtime() {
+  if (!supabaseClient) return;
+
+  supabaseClient
+    .channel('realtime_ordenes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ordenes_compra' }, payload => {
+      if (payload.eventType === 'INSERT') {
+        const existe = state.orders.some(o => o.id === payload.new.id);
+        if (!existe) state.orders.push(payload.new);
+      } else if (payload.eventType === 'UPDATE') {
+        const idx = state.orders.findIndex(o => o.id === payload.new.id);
+        if (idx !== -1) state.orders[idx] = payload.new;
+      } else if (payload.eventType === 'DELETE') {
+        state.orders = state.orders.filter(o => o.id !== payload.old.id);
+      }
+      migrarOrdenes();
+      render();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'dme_metas' }, payload => {
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        state.dmeMetas[payload.new.mes] = { productos: payload.new.productos, servicios: payload.new.servicios };
+      }
+      render();
+    })
+    .subscribe();
+}
+
+// ---------------------------------------------------------------------------
+// Inicialización principal
+// ---------------------------------------------------------------------------
+document.getElementById('app-version').innerText = APP_VERSION;
 cargar();
-document.getElementById('app-version').textContent = APP_VERSION;
+iniciarSuscripcionRealtime();
+
+// ---------------------------------------------------------------------------
+// Renderizado y Event Handler base
+// ---------------------------------------------------------------------------
+function render(){
+  const app = document.getElementById('app');
+  if(!app) return;
+  if(state.cargando){
+    app.innerHTML = `<div class="card" style="text-align:center;padding:40px;"><div class="muted">Cargando aplicación...</div></div>`;
+    return;
+  }
+
+  let html = '';
+  if(state.syncError){
+    html += `<div class="dme-alert" style="background:var(--danger-bg);border-color:var(--danger-border);color:var(--danger);">${ICONS.alertTriangle} <div>${esc(state.syncError)}</div></div>`;
+  }
+
+  html += `<div class="tabbar">
+    <button class="tab-btn ${state.tab==='ordenes'?'active':''}" onclick="setTab('ordenes')">Órdenes de Compra</button>
+    <button class="tab-btn ${state.tab==='dme'?'active':''}" onclick="setTab('dme')">Presupuesto DME</button>
+  </div>`;
+
+  if(state.tab === 'ordenes'){
+    if(state.view === 'lista') html += renderListaView();
+    else if(state.view === 'detalle') html += renderDetalleView();
+  } else if(state.tab === 'dme'){
+    html += renderDMEView();
+  }
+
+  if(state.modal) html += renderModal();
+
+  app.innerHTML = html;
+}
+
+function setTab(t){ state.tab = t; state.view = 'lista'; render(); }
+
+// ---------------------------------------------------------------------------
+// Vistas de la aplicación
+// ---------------------------------------------------------------------------
+function renderListaView(){
+  // Cálculos de tarjetas de contadores y filtro
+  let nVerde=0, nAmarillo=0, nRojo=0;
+  const listWithStatus = state.orders.map(o => {
+    const st = computeStatus(o);
+    if(st.semaforo==='verde') nVerde++;
+    if(st.semaforo==='amarillo') nAmarillo++;
+    if(st.semaforo==='rojo') nRojo++;
+    return { ...o, _st: st };
+  });
+
+  const filtradas = listWithStatus.filter(o => {
+    if(state.filtroSem !== 'todos' && o._st.semaforo !== state.filtroSem) return false;
+    if(state.fNombre && !o.producto.toLowerCase().includes(state.fNombre.toLowerCase())) return false;
+    if(state.fProveedor !== 'todos' && o.proveedor !== state.fProveedor) return false;
+    if(state.fRequisicion && !(o.numeroRequisicion||'').toLowerCase().includes(state.fRequisicion.toLowerCase())) return false;
+    if(state.fOC && !(o.numeroOC||'').toLowerCase().includes(state.fOC.toLowerCase())) return false;
+    return true;
+  });
+
+  const proveedores = [...new Set(state.orders.map(o=>o.proveedor))].filter(Boolean);
+
+  let html = `<div class="row" style="margin-bottom:16px;">
+    <h2>Listado de Órdenes (${filtradas.length})</h2>
+    <button class="btn btn-primary" onclick="nuevaOrden()">+ Nueva Orden</button>
+  </div>`;
+
+  html += `<div class="counts">
+    <div class="count-card ${state.filtroSem==='todos'?'active':''}" onclick="setFiltroSem('todos')">
+      <div class="count-icon" style="background:#EFECE9;">${ICONS.box}</div>
+      <div><div class="lbl">Todas</div><div class="val">${state.orders.length}</div></div>
+    </div>
+    <div class="count-card ${state.filtroSem==='rojo'?'active':''}" onclick="setFiltroSem('rojo')">
+      <div class="count-icon" style="background:var(--danger-bg);color:var(--danger);">${ICONS.alertTriangle}</div>
+      <div><div class="lbl">Vencidas</div><div class="val" style="color:var(--danger);">${nRojo}</div></div>
+    </div>
+    <div class="count-card ${state.filtroSem==='amarillo'?'active':''}" onclick="setFiltroSem('amarillo')">
+      <div class="count-icon" style="background:var(--amber-bg);color:var(--amber);">${ICONS.clock}</div>
+      <div><div class="lbl">Por Vencer</div><div class="val" style="color:var(--amber);">${nAmarillo}</div></div>
+    </div>
+    <div class="count-card ${state.filtroSem==='verde'?'active':''}" onclick="setFiltroSem('verde')">
+      <div class="count-icon" style="background:var(--green-bg);color:var(--green);">${ICONS.check}</div>
+      <div><div class="lbl">Al día / Listo</div><div class="val" style="color:var(--green);">${nVerde}</div></div>
+    </div>
+  </div>`;
+
+  html += `<div class="card">
+    <div class="filters-grid">
+      <div>
+        <label class="field-label">Producto / Descripción</label>
+        <input type="text" placeholder="Buscar por producto..." value="${esc(state.fNombre)}" oninput="state.fNombre=this.value;render();">
+      </div>
+      <div>
+        <label class="field-label">Proveedor</label>
+        <select onchange="state.fProveedor=this.value;render();">
+          <option value="todos">Todos los proveedores</option>
+          ${proveedores.map(p=>`<option value="${esc(p)}" ${state.fProveedor===p?'selected':''}>${esc(p)}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label class="field-label">N° Requisición</label>
+        <input type="text" placeholder="Ej. 10118" value="${esc(state.fRequisicion)}" oninput="state.fRequisicion=this.value;render();">
+      </div>
+      <div>
+        <label class="field-label">N° OC</label>
+        <input type="text" placeholder="Ej. 78823145" value="${esc(state.fOC)}" oninput="state.fOC=this.value;render();">
+      </div>
+    </div>
+  </div>`;
+
+  if(filtradas.length === 0){
+    html += `<div class="card empty-msg">No se encontraron órdenes que coincidan con los filtros.</div>`;
+  } else {
+    html += `<div class="order-list">`;
+    filtradas.forEach(o => {
+      const stage = STAGES[o._st.index];
+      html += `<div class="order-card" onclick="verDetalle('${o.id}')">
+        <div class="order-status-bar ${o._st.semaforo}"></div>
+        <div class="order-main">
+          <div class="order-title">${esc(o.producto)}</div>
+          <div class="order-sub">${esc(o.proveedor)} ${o.numeroRequisicion ? '• Req: '+esc(o.numeroRequisicion) : ''} ${o.numeroOC ? '• OC: '+esc(o.numeroOC) : ''}</div>
+        </div>
+        <div class="order-stage">
+          <div class="st-label">${esc(stage.label)}</div>
+          <div class="st-resp">${esc(stage.responsable)}</div>
+        </div>
+        <div class="order-time">
+          <span class="badge ${o._st.semaforo}">${esc(o._st.mensaje)}</span>
+        </div>
+        <div class="chev">${ICONS.chev}</div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  return html;
+}
+
+function setFiltroSem(sem){ state.filtroSem = sem; render(); }
+function verDetalle(id){ state.selectedId = id; state.view = 'detalle'; render(); }
+
+function renderDetalleView(){
+  const o = state.orders.find(item => item.id === state.selectedId);
+  if(!o){ state.view = 'lista'; return renderListaView(); }
+
+  const st = computeStatus(o);
+  const estadoIndex = st.index;
+
+  let html = `<div class="row" style="margin-bottom:16px;">
+    <button class="btn btn-outline" onclick="state.view='lista';render();">← Volver al listado</button>
+    <button class="btn btn-danger" onclick="state.confirmDelete=true;render();">Eliminar Orden</button>
+  </div>`;
+
+  if(state.confirmDelete){
+    html += `<div class="card" style="border-color:var(--danger-border);background:var(--danger-bg);margin-bottom:16px;">
+      <div style="font-weight:700;color:var(--danger);">¿Seguro que deseas eliminar esta orden?</div>
+      <div class="muted" style="margin:6px 0 12px;font-size:13px;">Esta acción eliminará el registro para todos los usuarios.</div>
+      <button class="btn btn-danger" onclick="confirmarEliminar('${o.id}')">Sí, eliminar</button>
+      <button class="btn btn-outline" onclick="state.confirmDelete=false;render();">Cancelar</button>
+    </div>`;
+  }
+
+  html += `<div class="card">
+    <div class="row">
+      <div>
+        <h2>${esc(o.producto)}</h2>
+        <div class="muted" style="margin-top:4px;font-size:13px;">Proveedor: <strong>${esc(o.proveedor)}</strong></div>
+      </div>
+      <div><span class="badge ${st.semaforo}">${esc(st.mensaje)}</span></div>
+    </div>
+
+    <!-- Stepper -->
+    <div style="margin-top:24px;border-top:1px solid var(--border-soft);padding-top:18px;">
+      <div class="stepper">`;
+      STAGES.forEach((stage, idx) => {
+        const dateVal = o.fechas[stage.dateField];
+        const isDone = Boolean(dateVal);
+        const isCurrent = idx === estadoIndex && !st.completado;
+        
+        let circleStyle = 'border-color:var(--border);color:var(--text-faint);';
+        if(isDone) circleStyle = 'border-color:var(--green);background:var(--green-bg);color:var(--green);';
+        else if(isCurrent) circleStyle = `border-color:var(--${st.semaforo});color:var(--${st.semaforo});font-weight:800;`;
+
+        html += `<div class="step-col">
+          <div class="step-circle" style="${circleStyle}">${isDone ? ICONS.check : (idx+1)}</div>
+          <div class="step-label" style="${isCurrent?'font-weight:700;':''}">${esc(stage.label)}</div>
+          <div class="step-date">${fmt(dateVal)}</div>
+        </div>`;
+        if(idx < STAGES.length - 1){
+          html += `<div class="connector" style="background:${isDone?'var(--green)':'var(--border-soft)'};"></div>`;
+        }
+      });
+  html += `</div></div></div>`;
+
+  // Formulario de edición de campos
+  html += `<div class="card">
+    <h3>Detalles y Fechas de Etapas</h3>
+    <div class="fields-grid" style="margin-top:16px;">
+      <div class="field-box">
+        <label class="field-label">N° Requisición</label>
+        <input type="text" value="${esc(o.numeroRequisicion||'')}" onchange="actualizarOrdenField('${o.id}','numeroRequisicion',this.value)">
+      </div>
+      <div class="field-box">
+        <label class="field-label">N° Orden de Compra (OC)</label>
+        <input type="text" value="${esc(o.numeroOC||'')}" onchange="actualizarOrdenField('${o.id}','numeroOC',this.value)">
+      </div>
+      <div class="field-box">
+        <label class="field-label">Costo Unitario ($)</label>
+        <input type="number" step="0.01" value="${o.costoUnitario!=null?o.costoUnitario:''}" onchange="actualizarOrdenField('${o.id}','costoUnitario',parseFloat(this.value)||null)">
+      </div>
+      <div class="field-box">
+        <label class="field-label">Cantidad</label>
+        <input type="number" value="${o.cantidad!=null?o.cantidad:1}" onchange="actualizarOrdenField('${o.id}','cantidad',parseInt(this.value,10)||1)">
+      </div>
+      <div class="field-box">
+        <label class="field-label">Tipo de Gasto</label>
+        <select onchange="actualizarOrdenField('${o.id}','tipoGasto',this.value)">
+          <option value="producto" ${o.tipoGasto==='producto'?'selected':''}>Producto</option>
+          <option value="servicio" ${o.tipoGasto==='servicio'?'selected':''}>Servicio</option>
+        </select>
+      </div>
+    </div>
+
+    <h4 style="margin-top:20px;margin-bottom:12px;">Fechas de Etapas</h4>
+    <div class="fields-grid">`;
+    STAGES.forEach(stage => {
+      const val = o.fechas[stage.dateField] || '';
+      html += `<div class="field-box">
+        <label class="field-label">${esc(stage.inputLabel)}</label>
+        <input type="date" value="${val}" onchange="actualizarFechaEtapa('${o.id}','${stage.dateField}',this.value)">
+      </div>`;
+    });
+    CAMPOS_EXTRA.forEach(campo => {
+      const val = o.fechas[campo.key] || '';
+      html += `<div class="field-box">
+        <label class="field-label">${esc(campo.label)}</label>
+        <input type="date" value="${val}" onchange="actualizarFechaEtapa('${o.id}','${campo.key}',this.value)">
+      </div>`;
+    });
+  html += `</div></div>`;
+
+  // Historial
+  html += `<div class="card">
+    <h3>Historial de Cambios</h3>
+    <div style="margin-top:12px;">`;
+    if(!o.historial || o.historial.length===0){
+      html += `<div class="faint" style="font-size:12.5px;">Sin historial registrado.</div>`;
+    } else {
+      [...o.historial].reverse().forEach(h => {
+        html += `<div class="hist-item"><span class="hist-date">${fmt(h.fecha)}</span> <span>${esc(h.mensaje)}</span></div>`;
+      });
+    }
+  html += `</div></div>`;
+
+  return html;
+}
+
+// ---------------------------------------------------------------------------
+// Acciones de actualización de órdenes
+// ---------------------------------------------------------------------------
+async function actualizarOrdenField(id, field, value){
+  const o = state.orders.find(item => item.id === id);
+  if(!o) return;
+  o[field] = value;
+  await guardar(o);
+  render();
+}
+
+async function actualizarFechaEtapa(id, dateField, value){
+  const o = state.orders.find(item => item.id === id);
+  if(!o) return;
+  o.fechas[dateField] = value || null;
+  
+  if(!o.historial) o.historial = [];
+  o.historial.push({
+    fecha: hoyISO(),
+    mensaje: `Se actualizó la fecha (${dateField}) a: ${value || 'Vacío'}`
+  });
+
+  await guardar(o);
+  render();
+}
+
+async function nuevaOrden(){
+  state.modal = {
+    tipo: 'nueva_orden',
+    producto: '',
+    proveedor: '',
+    costoUnitario: '',
+    cantidad: 1,
+    tipoGasto: 'producto'
+  };
+  state.modalErr = '';
+  render();
+}
+
+async function confirmarEliminar(id){
+  state.orders = state.orders.filter(o => o.id !== id);
+  await eliminarOrden(id);
+  state.confirmDelete = false;
+  state.view = 'lista';
+  render();
+}
+
+// ---------------------------------------------------------------------------
+// Presupuesto DME
+// ---------------------------------------------------------------------------
+function renderDMEView(){
+  const mes = state.dmeMes;
+  const meta = state.dmeMetas[mes] || { productos: 0, servicios: 0 };
+  const res = resumenDME(mes);
+
+  const metaTotal = (Number(meta.productos)||0) + (Number(meta.servicios)||0);
+  const ejecutadoTotal = res.compTotal + res.realTotal;
+
+  let html = `<div class="card">
+    <div class="row">
+      <h2>Presupuesto DME</h2>
+      <input type="month" value="${mes}" style="width:auto;" onchange="state.dmeMes=this.value;render();">
+    </div>
+    <div style="margin-top:18px;">
+      ${burbujaDME(ejecutadoTotal, metaTotal)}
+    </div>
+  </div>`;
+
+  html += `<div class="card">
+    <h3>Configurar Meta del Mes (${mesLabel(mes)})</h3>
+    <div class="fields-grid" style="margin-top:14px;">
+      <div class="field-box">
+        <label class="field-label">Meta Productos ($)</label>
+        <input type="number" value="${meta.productos||''}" onchange="guardarMetaDME('${mes}','productos',parseFloat(this.value)||0)">
+      </div>
+      <div class="field-box">
+        <label class="field-label">Meta Servicios ($)</label>
+        <input type="number" value="${meta.servicios||''}" onchange="guardarMetaDME('${mes}','servicios',parseFloat(this.value)||0)">
+      </div>
+    </div>
+  </div>`;
+
+  html += `<div class="card">
+    <h3>Resumen de Gastos (${mesLabel(mes)})</h3>
+    <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:13px;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border);text-align:left;">
+          <th style="padding:8px 0;">Tipo</th>
+          <th style="padding:8px 0;">Comprometido</th>
+          <th style="padding:8px 0;">Real (Entregado)</th>
+          <th style="padding:8px 0;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border-soft);">
+          <td style="padding:10px 0;">Productos</td>
+          <td>${fmtMoney(res.compProd)}</td>
+          <td>${fmtMoney(res.realProd)}</td>
+          <td><strong>${fmtMoney(res.compProd + res.realProd)}</strong></td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border-soft);">
+          <td style="padding:10px 0;">Servicios</td>
+          <td>${fmtMoney(res.compServ)}</td>
+          <td>${fmtMoney(res.realServ)}</td>
+          <td><strong>${fmtMoney(res.compServ + res.realServ)}</strong></td>
+        </tr>
+        <tr style="font-weight:700;background:var(--border-soft);">
+          <td style="padding:10px 4px;">Total</td>
+          <td>${fmtMoney(res.compTotal)}</td>
+          <td>${fmtMoney(res.realTotal)}</td>
+          <td>${fmtMoney(ejecutadoTotal)}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>`;
+
+  return html;
+}
+
+async function guardarMetaDME(mes, campo, valor){
+  if(!state.dmeMetas[mes]) state.dmeMetas[mes] = { productos: 0, servicios: 0 };
+  state.dmeMetas[mes][campo] = valor;
+  
+  const payload = {
+    mes,
+    productos: state.dmeMetas[mes].productos,
+    servicios: state.dmeMetas[mes].servicios
+  };
+  await guardar(null, payload);
+  render();
+}
+
+// ---------------------------------------------------------------------------
+// Modales
+// ---------------------------------------------------------------------------
+function renderModal(){
+  if(!state.modal) return '';
+  let html = `<div class="modal-overlay">
+    <div class="modal">
+      <h3>Crear Nueva Orden</h3>
+      
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <label class="field-label">Producto / Descripción *</label>
+          <input type="text" id="m-prod" value="${esc(state.modal.producto)}" oninput="state.modal.producto=this.value">
+        </div>
+        <div>
+          <label class="field-label">Proveedor *</label>
+          <input type="text" id="m-prov" value="${esc(state.modal.proveedor)}" oninput="state.modal.proveedor=this.value">
+        </div>
+        <div class="fields-grid" style="grid-template-columns:1fr 1fr;">
+          <div>
+            <label class="field-label">Costo Unit. ($)</label>
+            <input type="number" step="0.01" value="${state.modal.costoUnitario}" oninput="state.modal.costoUnitario=this.value">
+          </div>
+          <div>
+            <label class="field-label">Cantidad</label>
+            <input type="number" value="${state.modal.cantidad}" oninput="state.modal.cantidad=this.value">
+          </div>
+        </div>
+        <div>
+          <label class="field-label">Tipo de Gasto</label>
+          <select onchange="state.modal.tipoGasto=this.value">
+            <option value="producto" ${state.modal.tipoGasto==='producto'?'selected':''}>Producto</option>
+            <option value="servicio" ${state.modal.tipoGasto==='servicio'?'selected':''}>Servicio</option>
+          </select>
+        </div>
+      </div>
+
+      ${state.modalErr ? `<div class="err">${esc(state.modalErr)}</div>` : ''}
+
+      <div style="margin-top:18px;display:flex;justify-content:flex-end;gap:8px;">
+        <button class="btn btn-outline" onclick="state.modal=null;render();">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarNuevaOrden()">Crear Orden</button>
+      </div>
+    </div>
+  </div>`;
+  return html;
+}
+
+async function guardarNuevaOrden(){
+  if(!state.modal.producto.trim() || !state.modal.proveedor.trim()){
+    state.modalErr = 'Debes ingresar el producto y el proveedor.';
+    render();
+    return;
+  }
+
+  const id = 'OC-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000);
+  const nueva = {
+    id,
+    producto: state.modal.producto.trim(),
+    proveedor: state.modal.proveedor.trim(),
+    numeroRequisicion: null,
+    numeroOC: null,
+    costoUnitario: parseFloat(state.modal.costoUnitario) || null,
+    cantidad: parseInt(state.modal.cantidad, 10) || 1,
+    tipoGasto: state.modal.tipoGasto || 'producto',
+    creadoEn: hoyISO(),
+    mesInicio: hoyISO().slice(0,7),
+    fechas: emptyFechas(),
+    historial: [{ fecha: hoyISO(), mensaje: 'Orden creada' }]
+  };
+
+  state.orders.push(nueva);
+  await guardar(nueva);
+  state.modal = null;
+  state.selectedId = id;
+  state.view = 'detalle';
+  render();
+}
 </script>
 </body>
 </html>
